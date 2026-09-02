@@ -61,9 +61,20 @@ test.describe('Chat Interactions', () => {
 
   test('dropdown has all expected items', async ({ page }) => {
     await page.locator('.chat-header button[aria-label="Menu"]').click();
-    const items = page.locator('.chat-dropdown-item');
-    const count = await items.count();
-    expect(count).toBe(7);
+
+    // Assert the labels, not a count — adding an entry should not fail a test
+    // that says nothing about which entries matter.
+    const labels = await page.locator('.chat-dropdown-item').allTextContents();
+    expect(labels.map(l => l.trim())).toEqual([
+      'Info do contato',
+      'Pesquisar',
+      'Selecionar mensagens',
+      'Modo silencioso',
+      'Mensagens temporárias',
+      'Compartilhar print',
+      'Fechar conversa',
+      'Sobre o MasterWhats',
+    ]);
   });
 
   test('right-clicking chat background opens dropdown', async ({ page }) => {

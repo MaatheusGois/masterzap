@@ -15,6 +15,8 @@ import { renderNavRail } from './components/NavRail.js';
 import { showProfileDrawer } from './components/ProfileDrawer.js';
 import { showSettingsDrawer } from './components/SettingsDrawer.js';
 import { loadReadConversations, markConversationRead } from './lib/read-state.js';
+import { showToast } from './components/Toast.js';
+import { shareChatScreenshot } from './lib/screenshot.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -250,6 +252,26 @@ async function init() {
     // Build toggleSearch bound to this conversation
     const toggleSearch = () => toggleChatSearch(id, dateIndex);
 
+    /**
+     * Capture what is on screen and hand it to the platform.
+     *
+     * The main area is exactly the right frame for this: on mobile it fills the
+     * screen, and on desktop it is the chat without the sidebar.
+     */
+    async function shareScreenshot() {
+      const contactName = conversation.participants.find(p => p !== 'DV')
+        || conversation.participants[0];
+      try {
+        const outcome = await shareChatScreenshot(mainArea, contactName);
+        // The share sheet is its own confirmation, and a cancel is not an error.
+        if (outcome === 'copied') showToast(mainArea, 'Imagem copiada');
+        if (outcome === 'downloaded') showToast(mainArea, 'Imagem salva');
+      } catch (err) {
+        console.error('Screenshot failed:', err);
+        showToast(mainArea, 'Não foi possível gerar a imagem');
+      }
+    }
+
     // Action handlers for the investigation sections in the contact drawer
     const contactProfileActions = {
       onProfileDV: () => {
@@ -274,6 +296,7 @@ async function init() {
       onCloseChat: () => router.navigate('home'),
       onAbout: openSettings,
       onSearch: toggleSearch,
+      onScreenshot: shareScreenshot,
       onContactClick: () => {
         // Only one right drawer at a time
         if (activeChatSearch) { activeChatSearch.destroy(); activeChatSearch = null; }

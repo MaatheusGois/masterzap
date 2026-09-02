@@ -10,7 +10,7 @@
  */
 import { escapeHtml, formatTime, formatDateLong, linkify } from '../lib/utils.js';
 import { ScrollLoader } from '../lib/scroll-loader.js';
-import { ICON_INFO, ICON_SEARCH, ICON_CHECKEMPTY, ICON_BELL, ICON_TIMER, ICON_CLOSE_CIRCULAR, ICON_MASTERZAP_LOGO, ICON_MEETBALL, ICON_CHEVRON_DW } from '../lib/icons.js';
+import { ICON_INFO, ICON_SEARCH, ICON_CHECKEMPTY, ICON_BELL, ICON_TIMER, ICON_CLOSE_CIRCULAR, ICON_MASTERZAP_LOGO, ICON_MEETBALL, ICON_CHEVRON_DW, ICON_SCREENSHOT } from '../lib/icons.js';
 
 import { defaultAvatarSvg } from '../lib/avatar.js';
 
@@ -289,7 +289,7 @@ function renderMessage(msg) {
  */
 // Use the design system meetball icon for 3-dot menu
 
-export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout }) {
+export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout, onScreenshot }) {
   // Clear container
   while (container.firstChild) container.removeChild(container.firstChild);
 
@@ -378,6 +378,7 @@ export function renderChatView(container, { conversation, dateIndex, loadMessage
       { label: 'Selecionar mensagens', icon: ICON_CHECKEMPTY, action: null, enabled: false },
       { label: 'Modo silencioso', icon: ICON_BELL, action: null, enabled: false },
       { label: 'Mensagens temporárias', icon: ICON_TIMER, action: null, enabled: false },
+      { label: 'Compartilhar print', icon: ICON_SCREENSHOT, action: onScreenshot, enabled: !!onScreenshot },
       { label: 'Fechar conversa', icon: ICON_CLOSE_CIRCULAR, action: onCloseChat || onBack, enabled: !!(onCloseChat || onBack) },
       { label: 'Sobre o MasterWhats', icon: ICON_MASTERZAP_LOGO, action: onAbout, enabled: !!onAbout },
     ];
