@@ -72,6 +72,8 @@ test.describe('Chat Interactions', () => {
       'Modo silencioso',
       'Mensagens temporárias',
       'Compartilhar print',
+      'Exportar (.md)',
+      'Exportar (.json)',
       'Fechar conversa',
       'Sobre o MasterWhats',
     ]);
