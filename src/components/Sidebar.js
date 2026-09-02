@@ -7,16 +7,22 @@
 import { formatTime, escapeHtml, formatNumber, formatRelativeDate } from '../lib/utils.js';
 
 import { ICON_SEARCH as SEARCH_ICON, ICON_MEETBALL } from '../lib/icons.js';
+import { defaultAvatarSvg } from '../lib/avatar.js';
 
-const DEFAULT_AVATAR = `<svg viewBox="0 0 212 212"><path fill="#DFE5E7" d="M106.251.5C164.653.5 212 47.846 212 106.25S164.653 212 106.251 212C47.846 212 .5 164.654.5 106.25S47.846.5 106.251.5z"/><path fill="#FFF" d="M173.561 171.615a62.767 62.767 0 00-2.065-2.955 67.7 67.7 0 00-2.608-3.299 70.112 70.112 0 00-3.184-3.527 71.097 71.097 0 00-5.924-5.47 72.458 72.458 0 00-10.204-7.026 75.2 75.2 0 00-5.98-3.055c-.218-.095-.436-.19-.656-.28a78.436 78.436 0 00-10.457-3.467c-1.08-.282-2.163-.545-3.25-.783a79.975 79.975 0 00-4.083-.816 82.3 82.3 0 00-7.034-.856 87.82 87.82 0 00-11.373-.36 85.075 85.075 0 00-7.19.488 82.473 82.473 0 00-3.626.542c-1.388.239-2.771.508-4.148.815-1.084.238-2.165.501-3.241.783a78.41 78.41 0 00-10.467 3.467c-.219.09-.437.185-.654.28a75.37 75.37 0 00-5.986 3.055 72.56 72.56 0 00-10.198 7.027 71.168 71.168 0 00-5.924 5.47 69.933 69.933 0 00-3.187 3.527c-.906 1.076-1.776 2.176-2.608 3.299a63.105 63.105 0 00-2.065 2.955 56.961 56.961 0 00-1.86 3.211 28.89 28.89 0 0117.373-9.752 36.505 36.505 0 011.404-.387c3.7-.915 7.533-1.373 11.444-1.373h.312c9.647.109 18.857 2.604 27.089 6.94.022.011.045.02.067.032a54.543 54.543 0 016.404 4.11c.327.244.65.494.971.748l.004.002a60.49 60.49 0 012.21 1.904l.002.003.142.13.166.149c.09.08.178.164.268.245a41.078 41.078 0 002.242-1.906l.004-.004c.321-.254.644-.503.971-.747a54.616 54.616 0 016.404-4.11c.021-.011.043-.021.065-.031 8.233-4.337 17.443-6.832 27.09-6.941h.312c3.91 0 7.744.459 11.444 1.373.474.117.941.248 1.404.387a28.88 28.88 0 0117.373 9.752 56.68 56.68 0 00-1.86-3.211z"/><path fill="#FFF" d="M106.002 125.5c2.645 0 5.212-.253 7.68-.737a38.272 38.272 0 003.624-.896 37.124 37.124 0 005.12-2.023 36.413 36.413 0 006.15-4.02 37.172 37.172 0 005.088-5.088 36.483 36.483 0 004.02-6.15 37.318 37.318 0 002.023-5.12 38.689 38.689 0 00.896-3.624 39.321 39.321 0 00.737-7.68c0-20.933-17.006-37.939-37.938-37.939S68.064 69.63 68.064 90.562s17.006 37.938 37.938 37.938z"/></svg>`;
+/**
+ * The two conversations pinned under "Favoritas" — the leaks this project is
+ * actually about. Everything else is context around them.
+ */
+export const FAVORITE_CONVERSATIONS = new Set(['alexandre-de-moraes', 'martha-graeff']);
 
 /**
  * @param {HTMLElement} container
  * @param {object} options
  * @param {Array} options.conversations
  * @param {function} options.onSelect - called with conversation id
+ * @param {Set<string>} [options.readConversations] - ids already opened
  */
-export function renderSidebar(container, { conversations, onSelect, onProfile, onAbout }) {
+export function renderSidebar(container, { conversations, onSelect, onProfile, onAbout, readConversations = new Set() }) {
   const el = document.createElement('aside');
   el.className = 'sidebar';
   el.setAttribute('role', 'navigation');
@@ -43,9 +49,9 @@ export function renderSidebar(container, { conversations, onSelect, onProfile, o
       </div>
     </div>
     <div class="sidebar-tags">
-      <button class="sidebar-tag">Todas</button>
-      <button class="sidebar-tag">Não lidas <span class="sidebar-tag-count">65.772</span></button>
-      <button class="sidebar-tag active">Favoritas</button>
+      <button class="sidebar-tag active" data-filter="todas">Todas</button>
+      <button class="sidebar-tag" data-filter="nao-lidas">Não lidas <span class="sidebar-tag-count"></span></button>
+      <button class="sidebar-tag" data-filter="favoritas">Favoritas</button>
       <button class="sidebar-tag disabled">Grupos</button>
     </div>
     <div class="conversation-list" role="list"></div>
@@ -74,6 +80,7 @@ export function renderSidebar(container, { conversations, onSelect, onProfile, o
     item.setAttribute('role', 'listitem');
     item.setAttribute('tabindex', '0');
     item.dataset.id = conv.id;
+    if (FAVORITE_CONVERSATIONS.has(conv.id)) item.dataset.favorite = 'true';
 
     const lastDate = conv.last_message?.timestamp
       ? conv.last_message.timestamp.split('T')[0]
@@ -89,7 +96,7 @@ export function renderSidebar(container, { conversations, onSelect, onProfile, o
     // Use real avatar if available, otherwise default SVG
     const avatarHtml = conv.avatar
       ? `<img src="${conv.avatar}" alt="${displayName}" class="conversation-item-avatar-img" />`
-      : DEFAULT_AVATAR;
+      : defaultAvatarSvg(conv.id);
 
     // Escaped user-facing data inserted via innerHTML
     item.innerHTML = `
@@ -126,6 +133,84 @@ export function renderSidebar(container, { conversations, onSelect, onProfile, o
     <span>Suas mensagens são exibidas <span class="sidebar-lock-link" data-action="profile-dv"><strong>nacionalmente para todos do Brasil</strong></span>.</span>
   `;
   list.appendChild(lockMsg);
+
+  // Shown when a filter leaves nothing on screen.
+  const emptyMsg = document.createElement('div');
+  emptyMsg.className = 'sidebar-empty-filter';
+  emptyMsg.style.display = 'none';
+  list.appendChild(emptyMsg);
+
+  // ── Filter tabs ────────────────────────────────────
+  //
+  // The tabs used to be decorative. They now actually filter, and the unread
+  // tally follows the read state instead of being a fixed total.
+
+  const tagButtons = [...el.querySelectorAll('.sidebar-tag[data-filter]')];
+  const unreadCountEl = el.querySelector('.sidebar-tag-count');
+  let activeFilter = 'todas';
+
+  const isUnread = (conv) => !readConversations.has(conv.id);
+
+  function matchesFilter(conv) {
+    if (activeFilter === 'nao-lidas') return isUnread(conv);
+    if (activeFilter === 'favoritas') return FAVORITE_CONVERSATIONS.has(conv.id);
+    return true;
+  }
+
+  /** Refresh the unread badges, the tab tally and — if filtering by unread —
+   *  which rows are on screen. */
+  function refreshReadState() {
+    const unread = conversations.filter(isUnread);
+    const unreadMessages = unread.reduce((sum, c) => sum + (c.total_messages || 0), 0);
+
+    unreadCountEl.textContent = unreadMessages ? unreadMessages.toLocaleString('pt-BR') : '';
+    unreadCountEl.style.display = unreadMessages ? '' : 'none';
+
+    for (const item of el.querySelectorAll('.conversation-item')) {
+      const badge = item.querySelector('.conversation-item-unread');
+      if (badge) badge.style.display = readConversations.has(item.dataset.id) ? 'none' : '';
+    }
+
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const byId = new Map(conversations.map(c => [c.id, c]));
+    let visible = 0;
+
+    for (const item of el.querySelectorAll('.conversation-item')) {
+      const conv = byId.get(item.dataset.id);
+      const show = conv ? matchesFilter(conv) : true;
+      item.style.display = show ? '' : 'none';
+      if (show) visible++;
+    }
+
+    emptyMsg.style.display = visible ? 'none' : '';
+    emptyMsg.textContent = activeFilter === 'nao-lidas'
+      ? 'Você já abriu todas as conversas.'
+      : 'Nenhuma conversa aqui.';
+    // The lock note belongs at the end of the real list, not of an empty one.
+    lockMsg.style.display = visible ? '' : 'none';
+  }
+
+  for (const btn of tagButtons) {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.filter;
+      tagButtons.forEach(b => b.classList.toggle('active', b === btn));
+      searchInput.placeholder = activeFilter === 'favoritas'
+        ? 'Pesquisar nas favoritas'
+        : 'Pesquisar';
+      applyFilter();
+      list.scrollTop = 0;
+    });
+  }
+
+  searchInput.placeholder = 'Pesquisar';
+  refreshReadState();
+
+  // main.js marks a conversation read when it opens; this lets it repaint the
+  // badges and the tally without rebuilding the whole sidebar.
+  el.refreshReadState = refreshReadState;
 
   // Mobile bottom navbar (hidden on desktop via CSS)
   const bottomNav = document.createElement('nav');
@@ -208,17 +293,8 @@ export function renderSidebar(container, { conversations, onSelect, onProfile, o
  */
 export function setActiveConversation(sidebar, activeId) {
   sidebar.querySelectorAll('.conversation-item').forEach(item => {
-    const isActive = item.dataset.id === activeId;
-    item.classList.toggle('active', isActive);
-
-    // Clear unread badge when conversation is opened
-    if (isActive) {
-      const badge = item.querySelector('.conversation-item-unread');
-      if (badge) badge.style.display = 'none';
-
-      // Clear the "Não lidas" tag count
-      const tagCount = sidebar.querySelector('.sidebar-tag-count');
-      if (tagCount) tagCount.style.display = 'none';
-    }
+    item.classList.toggle('active', item.dataset.id === activeId);
   });
+  // Badges and the unread tally follow the stored read state, repainted by
+  // refreshReadState() once main.js has recorded the open.
 }

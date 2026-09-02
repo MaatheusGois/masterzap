@@ -14,6 +14,13 @@ import { showMobileSearchBar } from './components/MobileSearchBar.js';
 import { renderNavRail } from './components/NavRail.js';
 import { showProfileDrawer } from './components/ProfileDrawer.js';
 import { showSettingsDrawer } from './components/SettingsDrawer.js';
+import { loadReadConversations, markConversationRead } from './lib/read-state.js';
+import { showToast } from './components/Toast.js';
+import {
+  shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot,
+  shareImageFile, canShareFiles,
+} from './lib/screenshot.js';
+import { showImagePreview } from './components/ImagePreview.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -25,6 +32,8 @@ let activeSettingsDrawer = null;
 let activeSearch = null;
 let pendingScrollTarget = null;
 let mainAreaSavedContent = null;
+let currentConversationId = null;
+let activeImagePreview = null;
 
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
@@ -46,9 +55,34 @@ async function init() {
   mainArea.className = 'main-area';
   mainArea.setAttribute('role', 'main');
 
-  const AVATARS = { 'martha-graeff': '/assets/avatar-martha-graeff.jpeg' };
+  // Contacts with a photograph. Everyone else falls back to the generated
+  // coloured avatar in lib/avatar.js, keyed by conversation id.
+  const AVATARS = {
+    'martha-graeff': '/assets/avatar-martha-graeff.jpeg',
+    'alexandre-de-moraes': '/assets/avatar-alexandre-de-moraes.jpg',
+    'fabio-faria': '/assets/avatar-fabio-faria.jpg',
+    'vivi-moraes': '/assets/avatar-vivi-moraes.jpg',
+    'ciro-soares': '/assets/avatar-ciro-soares.jpg',
+    'geraldo-brazil-journal': '/assets/avatar-geraldo-brazil-journal.jpg',
+    'fabiano-zettel': '/assets/avatar-fabiano-zettel.jpg',
+    'marcio-conjur': '/assets/avatar-marcio-conjur.jpg',
+    'diretor-paulo-sergio-bacen': '/assets/avatar-diretor-paulo-sergio-bacen.jpg',
+    'leo-palhares': '/assets/avatar-leo-palhares.jpg',
+    'marcos-prime': '/assets/avatar-marcos-prime.jpg',
+    'thatiane-prime': '/assets/avatar-thatiane-prime.jpg',
+    'leo-serrano': '/assets/avatar-leo-serrano.jpg',
+    'stella-vorcaro': '/assets/avatar-stella-vorcaro.jpg',
+    'luiz-renno': '/assets/avatar-luiz-renno.jpg',
+    'ana-matos-mkt': '/assets/avatar-ana-matos-mkt.jpg',
+    // The chat Vorcaro kept with himself — his own photo, as WhatsApp shows it.
+    'dv-self': '/assets/avatar-dv.jpg',
+  };
   const SENDER_NAMES = { 'DV': 'Daniel Vocaro' };
-  const MEDIA_COUNTS = { images: 3930, videos: 430, documents: 55 };
+  // Per-conversation media tallies come from conversations.json (built by
+  // scripts/split_data.py); this is only the fallback for older data.
+  const MEDIA_COUNTS = { images: 0, videos: 0, documents: 0 };
+
+  const readConversations = loadReadConversations();
 
   const store = getDataStore();
   try {
@@ -70,6 +104,8 @@ async function init() {
 
   /** Close the chat (loader, context menu, right drawers). */
   function closeChat() {
+    clearPreparedScreenshot();
+    if (activeImagePreview) { activeImagePreview.destroy(); activeImagePreview = null; }
     closeRightDrawers();
     if (activeLoader) { activeLoader.destroy(); activeLoader = null; }
     if (activeContextMenu) { activeContextMenu.destroy(); activeContextMenu = null; }
@@ -132,18 +168,19 @@ async function init() {
 
   // ── Shared search action for sidebar ───────────────
 
-  function fillSidebarSearch(term) {
+  function fillSidebarSearch(term, convId) {
     const isMobile = window.innerWidth <= 600;
+    const target = convId || currentConversationId || 'martha-graeff';
 
     if (isMobile) {
       // On mobile, open conversation first then trigger mobile search with pre-filled term
-      if (!activeLoader) {
-        router.navigate('chat', 'martha-graeff');
+      if (!activeLoader || target !== currentConversationId) {
+        router.navigate('chat', target);
       }
       setTimeout(() => {
         const chatViewEl = mainArea.querySelector('.chat-view');
         if (chatViewEl && !activeChatSearch) {
-          activeChatSearch = showMobileSearchBar(chatViewEl, 'martha-graeff', {
+          activeChatSearch = showMobileSearchBar(chatViewEl, target, {
             onNavigate: (messageId, date) => activeLoader?.scrollToMessage(messageId, date),
             onDateSelect: (date) => activeLoader?.scrollToDate(date),
             onClose: () => { activeChatSearch = null; },
@@ -208,25 +245,72 @@ async function init() {
     closeAll();
 
     setActiveConversation(sidebar, id);
+    // Opening a conversation marks it read, which updates its badge and the
+    // "Não lidas" tally.
+    if (markConversationRead(readConversations, id)) sidebar.refreshReadState?.();
     container.classList.add('chat-open');
 
     const conversation = store.getConversation(id);
     if (!conversation) { showEmptyState(); return; }
+    currentConversationId = id;
 
     const dateIndex = await store.getConversationIndex(id);
 
     // Build toggleSearch bound to this conversation
     const toggleSearch = () => toggleChatSearch(id, dateIndex);
 
-    // Martha's action handlers (for profile sections in contact info)
-    const currentMarthaActions = {
+    /**
+     * Capture what is on screen and hand it to the platform.
+     *
+     * The main area is exactly the right frame for this: on mobile it fills the
+     * screen, and on desktop it is the chat without the sidebar.
+     */
+    const contactName = conversation.participants.find(p => p !== 'DV')
+      || conversation.participants[0];
+
+    async function shareScreenshot() {
+      const result = await shareChatScreenshot(mainArea, contactName);
+      console.info('[screenshot]', result.outcome, result.reason || '', result.diag);
+
+      // 'shared' and 'cancelled' say themselves — the share sheet was the
+      // confirmation, and dismissing it was a decision.
+      if (result.outcome === 'copied') showToast(mainArea, 'Imagem copiada');
+      if (result.outcome === 'retry') showToast(mainArea, 'Toque novamente para compartilhar');
+
+      // The platform will neither share the file nor take it on the clipboard.
+      // Put the image on screen: long-pressing it reaches the browser's own
+      // share menu, which does know how to get to WhatsApp.
+      if (result.outcome === 'preview') {
+        activeImagePreview = showImagePreview(mainArea, result.blob, {
+          filename: result.filename,
+          // Offered only where the platform genuinely shares files. Firefox
+          // exposes navigator.share but will not take an image, and a button
+          // that fails is worse than no button.
+          onShare: canShareFiles()
+            ? () => shareImageFile(result.blob, result.filename)
+            : null,
+          onClose: () => { activeImagePreview = null; },
+        });
+      }
+
+      if (result.outcome === 'failed') {
+        showToast(mainArea, 'Não foi possível gerar a imagem');
+      }
+    }
+
+    // Action handlers for the investigation sections in the contact drawer
+    const contactProfileActions = {
       onProfileDV: () => {
         closeRightDrawers();
         openProfile();
       },
-      onSearch: (term) => {
+      onSearch: (term, convId) => {
         closeRightDrawers();
-        fillSidebarSearch(term);
+        fillSidebarSearch(term, convId);
+      },
+      onContact: (convId) => {
+        closeRightDrawers();
+        drawerActions(() => {}).onContact(convId);
       },
     };
 
@@ -238,6 +322,8 @@ async function init() {
       onCloseChat: () => router.navigate('home'),
       onAbout: openSettings,
       onSearch: toggleSearch,
+      onScreenshot: shareScreenshot,
+      onMenuOpen: () => prepareScreenshot(mainArea, contactName),
       onContactClick: () => {
         // Only one right drawer at a time
         if (activeChatSearch) { activeChatSearch.destroy(); activeChatSearch = null; }
@@ -246,10 +332,10 @@ async function init() {
           activeContactInfo = null;
         } else {
           activeContactInfo = showContactInfo(mainArea, conversation, {
-            mediaCounts: MEDIA_COUNTS,
+            mediaCounts: conversation.media_counts || MEDIA_COUNTS,
             onClose: () => { activeContactInfo = null; },
             onSearch: toggleSearch,
-            actions: currentMarthaActions,
+            actions: contactProfileActions,
           });
         }
       },
@@ -299,32 +385,45 @@ async function init() {
 
     activeProfileDrawer = showProfileDrawer(container, {
       onClose: closeProfile,
-      actions: {
-        onContactMartha: () => {
-          closeProfile();
-          router.navigate('chat', 'martha-graeff');
-          setTimeout(() => {
-            const conv = store.getConversation('martha-graeff');
-            if (conv && activeLoader) {
-              activeContactInfo = showContactInfo(mainArea, conv, {
-                mediaCounts: MEDIA_COUNTS,
-                onClose: () => { activeContactInfo = null; },
-                onSearch: () => toggleChatSearch('martha-graeff', []),
-                actions: {
-                  onProfileDV: () => { closeRightDrawers(); openProfile(); },
-                  onSearch: (term) => { closeRightDrawers(); fillSidebarSearch(term); },
-                },
-              });
-            }
-          }, 500);
-        },
-        onSearch: (term) => {
-          closeProfile();
-          if (!activeLoader) router.navigate('chat', 'martha-graeff');
-          fillSidebarSearch(term);
-        },
-      },
+      actions: drawerActions(closeProfile),
     });
+  }
+
+  /**
+   * Action handlers shared by the profile and settings drawers.
+   * @param {function} closeDrawer - closes whichever drawer is asking
+   */
+  function drawerActions(closeDrawer) {
+    return {
+      // Open a conversation and slide its contact drawer open on top.
+      onContact: (convId) => {
+        closeDrawer();
+        router.navigate('chat', convId);
+        setTimeout(() => {
+          const conv = store.getConversation(convId);
+          if (conv && activeLoader) {
+            activeContactInfo = showContactInfo(mainArea, conv, {
+              mediaCounts: conv.media_counts || MEDIA_COUNTS,
+              onClose: () => { activeContactInfo = null; },
+              onSearch: () => toggleChatSearch(convId, []),
+              actions: {
+                onProfileDV: () => { closeRightDrawers(); openProfile(); },
+                onSearch: (term, id) => { closeRightDrawers(); fillSidebarSearch(term, id); },
+                onContact: (id) => { closeRightDrawers(); drawerActions(() => {}).onContact(id); },
+              },
+            });
+          }
+        }, 500);
+      },
+      onSearch: (term, convId) => {
+        closeDrawer();
+        const target = convId || currentConversationId || 'martha-graeff';
+        if (!activeLoader || (convId && convId !== currentConversationId)) {
+          router.navigate('chat', target);
+        }
+        fillSidebarSearch(term, target);
+      },
+    };
   }
 
   // ── Settings drawer ────────────────────────────────
@@ -341,13 +440,7 @@ async function init() {
 
     activeSettingsDrawer = showSettingsDrawer(container, {
       onClose: closeSettings,
-      actions: {
-        onSearch: (term) => {
-          closeSettings();
-          if (!activeLoader) router.navigate('chat', 'martha-graeff');
-          fillSidebarSearch(term);
-        },
-      },
+      actions: drawerActions(closeSettings),
     });
   }
 
@@ -369,6 +462,7 @@ async function init() {
 
   const sidebar = renderSidebar(container, {
     conversations: store.getConversations(),
+    readConversations,
     onProfile: openProfile,
     onAbout: openSettings,
     onSelect: (id) => {

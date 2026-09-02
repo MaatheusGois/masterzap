@@ -70,7 +70,7 @@ export function showSettingsDrawer(container, { onClose, actions = {} } = {}) {
 
   const logoSub = document.createElement('div');
   logoSub.className = 'settings-logo-sub';
-  logoSub.textContent = '65.772 mensagens · fev 2024 a ago 2025';
+  logoSub.textContent = '66.387 mensagens · 24 conversas · dez 2023 a nov 2025';
   logoSection.appendChild(logoSub);
 
   body.appendChild(logoSection);

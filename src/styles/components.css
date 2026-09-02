@@ -898,3 +898,121 @@
   border-radius: 2px;
   padding: 0 1px;
 }
+
+/* ── Image preview ────────────────────────────── */
+/* Shown when the platform will neither share the file nor take it on the
+   clipboard: the image goes on the page so the browser's own long-press menu
+   can reach it. */
+
+.image-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  flex-direction: column;
+  background-color: #0b141a;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.image-preview.open {
+  opacity: 1;
+}
+
+.image-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.image-preview-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+}
+
+.image-preview-close:active {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.image-preview-title {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+/* The image gets the space that is left, never more: the hint and the buttons
+   below are laid out first, so nothing ends up on top of them. */
+.image-preview-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 16px;
+}
+
+.image-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.image-preview-footer {
+  flex-shrink: 0;
+  padding: 14px 16px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+
+.image-preview-hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.image-preview-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.image-preview-actions:not(:empty) {
+  margin-top: 14px;
+}
+
+.image-preview-action {
+  min-width: 180px;
+  padding: 12px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 22px;
+  background: transparent;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.image-preview-action.primary {
+  border-color: transparent;
+  background-color: var(--WDS-primary-strong, #1daa61);
+}
+
+.image-preview-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}

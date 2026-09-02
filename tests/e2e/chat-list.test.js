@@ -37,9 +37,9 @@ test.describe('Chat List — Batch 3', () => {
   });
 
   test('data loads from conversations.json', async ({ page }) => {
-    // Verify the fetch happened by checking the conversation name matches data
-    const name = page.locator('.conversation-item-name').first();
-    await expect(name).toHaveText('Martha Graeff');
+    // Verify the fetch happened by checking a known conversation is rendered
+    const item = page.locator('.conversation-item[data-id="martha-graeff"]');
+    await expect(item.locator('.conversation-item-name')).toHaveText('Martha Graeff');
   });
 
   test('conversation list is scrollable when content overflows', async ({ page }) => {

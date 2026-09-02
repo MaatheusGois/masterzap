@@ -19,13 +19,35 @@ describe('split_data output', () => {
     expect(Array.isArray(data.conversations)).toBe(true);
     expect(data.conversations.length).toBeGreaterThan(0);
 
-    const conv = data.conversations[0];
-    expect(conv).toHaveProperty('id', 'martha-graeff');
+    // The list is ordered by recency, so look conversations up by id.
+    const conv = data.conversations.find(c => c.id === 'martha-graeff');
+    expect(conv).toBeDefined();
     expect(conv).toHaveProperty('participants');
     expect(conv).toHaveProperty('date_range');
     expect(conv).toHaveProperty('total_messages');
     expect(conv).toHaveProperty('last_message');
     expect(conv.total_messages).toBe(65772);
+
+    // Every id must be unique — a collision would silently overwrite chunks.
+    const ids = data.conversations.map(c => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('includes the Alexandre de Moraes conversation from the IPJ report', () => {
+    const path = join(DATA_DIR, 'conversations.json');
+    const data = JSON.parse(readFileSync(path, 'utf-8'));
+
+    const conv = data.conversations.find(c => c.id === 'alexandre-de-moraes');
+    expect(conv).toBeDefined();
+    expect(conv.participants).toContain('Alexandre de Moraes BRASILIA');
+    expect(conv.total_messages).toBeGreaterThan(0);
+    expect(conv.source).toMatch(/3298613/);
+
+    const index = JSON.parse(
+      readFileSync(join(DATA_DIR, 'alexandre-de-moraes/index.json'), 'utf-8')
+    );
+    const indexed = index.dates.reduce((sum, d) => sum + d.message_count, 0);
+    expect(indexed).toBe(conv.total_messages);
   });
 
   it('martha-graeff/index.json exists with dates array', () => {

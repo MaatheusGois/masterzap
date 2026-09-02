@@ -1,0 +1,239 @@
+#!/usr/bin/env python3
+"""Build conversation JSON from the IPJ-A 3298613/2026 extraction.
+
+Source: data/ipj-3298613/*.jsonl — transcription of the Federal Police report
+on Daniel Vorcaro's seized iPhone (Operação Compliance Zero). The message
+content in the PDF lives inside page images, so the JSONL files are a manual
+transcription, not a parser output.
+
+Output: data/conversations/<conv-id>.json in the same shape as
+data/messages.json (metadata + messages), consumable by scripts/split_data.py.
+"""
+
+import json
+import re
+from collections import defaultdict
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+SRC_DIR = ROOT / "data" / "ipj-3298613"
+OUT_DIR = ROOT / "data" / "conversations"
+
+SOURCE_DOC = "IPJ-A nº 3298613/2026 — NADIP/DFIN/CGRC/DICOR/PF"
+
+MORAES_ID = "alexandre-de-moraes"
+MORAES_NAME = "Alexandre de Moraes BRASILIA"
+MORAES_PHONE = "556192664093"
+
+URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
+
+
+def read_jsonl(path):
+    with open(path, "r", encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
+def slugify(name):
+    s = name.lower().strip()
+    for src, dst in (("àáâãä", "a"), ("èéêë", "e"), ("ìíîï", "i"),
+                     ("òóôõö", "o"), ("ùúûü", "u"), ("ç", "c"), ("ñ", "n")):
+        for ch in src:
+            s = s.replace(ch, dst)
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
+
+
+def make_message(mid, timestamp, sender, content, mtype, **extra):
+    """Build a message in the viewer's schema (see CLAUDE.md 'Data Format')."""
+    date, time = timestamp.split(" ")
+    msg = {
+        "id": mid,
+        "timestamp": f"{date}T{time}",
+        "date": date,
+        "time": time,
+        "sender": sender,
+        "content": content,
+        "type": mtype,
+        "is_edited": False,
+        "attachment": extra.get("attachment"),
+        "urls": URL_PATTERN.findall(content),
+    }
+    for key in ("forwarded", "quoted", "source_page", "source_figure",
+                "view_once", "note_created_utc", "sent_utc", "duration"):
+        if extra.get(key) is not None:
+            msg[key] = extra[key]
+    return msg
+
+
+def build_moraes_conversation():
+    """The DV <-> 'Alexandre de Moraes BRASILIA' chat.
+
+    Two sources merge here:
+      * chat-moraes.jsonl — the WhatsApp thread itself (17/11/2025), where every
+        DV message is a view-once image.
+      * notas.jsonl — the 52 Notes-app screenshots DV sent to the same terminal.
+        The PF correlated each note to a WhatsApp send via system logs, so each
+        note is rendered as an outgoing message at its send time (BRT).
+    """
+    events = []
+
+    for note in read_jsonl(SRC_DIR / "notas.jsonl"):
+        events.append({
+            "ts": note["sent_br"],
+            "sender": "DV",
+            "content": note["body"],
+            "type": "text",
+            "extra": {
+                "view_once": True,
+                "note_created_utc": note.get("note_start_utc"),
+                "sent_utc": note.get("sent_utc"),
+                "source_page": note["page"],
+                "source_figure": note["fig"],
+            },
+        })
+
+    for msg in read_jsonl(SRC_DIR / "chat-moraes.jsonl"):
+        # Outgoing view-once images are the notes above; keep only the events
+        # the notes cannot express: system notices, deletions, and the
+        # unrecovered incoming images from the other side.
+        if msg["sender"] == "DV":
+            continue
+        events.append({
+            "ts": msg["ts"],
+            "sender": "system" if msg["sender"] == "system" else MORAES_NAME,
+            "content": msg["content"],
+            "type": msg["type"] if msg["type"] != "image_view_once" else "image",
+            "extra": {
+                "view_once": msg["type"] == "image_view_once" or None,
+                "source_page": msg["page"],
+                "source_figure": msg["fig"],
+            },
+        })
+
+    events.sort(key=lambda e: e["ts"])
+    messages = [
+        make_message(i, e["ts"], e["sender"], e["content"], e["type"], **e["extra"])
+        for i, e in enumerate(events, 1)
+    ]
+    metadata = {
+        "participants": ["DV", MORAES_NAME],
+        "phone": MORAES_PHONE,
+        "date_range": {"start": messages[0]["date"], "end": messages[-1]["date"]},
+        "total_messages": len(messages),
+        "source": SOURCE_DOC,
+        "note": (
+            "Mensagens de DANIEL VORCARO enviadas como capturas de tela do "
+            "aplicativo Notas em modo de visualização única; o conteúdo foi "
+            "recuperado pela perícia e correlacionado ao envio pelos logs do "
+            "sistema. Mensagens recebidas de visualização única não foram "
+            "recuperadas."
+        ),
+    }
+    return MORAES_ID, {"metadata": metadata, "messages": messages}
+
+
+# Contacts whose real name we know, keyed by conversation id.
+#
+# The JSONL keeps the contact exactly as the phone had it saved — that is what
+# the report reproduces, and it is evidence in its own right (Vorcaro filed the
+# minister under "Alexandre de Moraes BRASILIA"). But a nickname like "Marcos
+# Prime" tells a reader nothing, so where reporting has identified the person we
+# show the real name and keep the saved one alongside it.
+CONTACT_DISPLAY_NAMES = {
+    # CEO e fundador da Prime You. O relatório da PF grafa "MARCOS DA MATA".
+    "marcos-prime": "Marcus Matta",
+    # Prime You, cuidava da agenda de voos e dos eventos.
+    "thatiane-prime": "Thatiane Garcia",
+    # Produtor dos eventos; cavaleiro de hipismo.
+    "leo-serrano": "Leandro Serrano Giunchetti",
+}
+
+# The report also quotes the DV <-> Martha Graeff chat, but that conversation is
+# already in the viewer in full (data/messages.json, 65k messages covering the
+# same dates). Emitting the excerpts would collide with it under the same
+# conversation id, so they stay in mensagens.jsonl as source only.
+SKIP_CONVERSATIONS = {"martha-graeff"}
+
+
+def build_other_conversations():
+    """Every other chat quoted in the report, one conversation per contact."""
+    by_conv = defaultdict(list)
+    for msg in read_jsonl(SRC_DIR / "mensagens.jsonl"):
+        if msg["conv"] in SKIP_CONVERSATIONS:
+            continue
+        by_conv[msg["conv"]].append(msg)
+
+    built = {}
+    for conv_id, rows in by_conv.items():
+        rows.sort(key=lambda m: m["ts"])
+        saved_as = rows[0]["peer"]
+        peer = CONTACT_DISPLAY_NAMES.get(conv_id, saved_as)
+        messages = [
+            make_message(
+                i, r["ts"], r["sender"], r["content"], r["type"],
+                attachment=r.get("attachment"),
+                forwarded=r.get("forwarded"),
+                quoted=r.get("quoted"),
+                source_page=r["page"],
+                source_figure=r["fig"],
+            )
+            for i, r in enumerate(rows, 1)
+        ]
+        built[conv_id] = {
+            "metadata": {
+                "participants": ["DV", peer],
+                # How the contact was filed in Vorcaro's phone, when that differs
+                # from the person's name.
+                "saved_as": saved_as if saved_as != peer else None,
+                "phone": rows[0].get("phone"),
+                "date_range": {"start": messages[0]["date"], "end": messages[-1]["date"]},
+                "total_messages": len(messages),
+                "source": SOURCE_DOC,
+                "note": (
+                    "Trechos citados no relatório policial — a conversa completa "
+                    "não consta do documento."
+                ),
+            },
+            "messages": messages,
+        }
+    return built
+
+
+def build_index(messages):
+    by_date = defaultdict(list)
+    for msg in messages:
+        by_date[msg["date"]].append(msg)
+    return {
+        "dates": [
+            {
+                "date": date,
+                "message_count": len(by_date[date]),
+                "first_message_id": by_date[date][0]["id"],
+                "last_message_id": by_date[date][-1]["id"],
+            }
+            for date in sorted(by_date)
+        ]
+    }
+
+
+def main():
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
+    conversations = dict([build_moraes_conversation()])
+    conversations.update(build_other_conversations())
+
+    for conv_id, payload in sorted(conversations.items()):
+        payload["index"] = build_index(payload["messages"])
+        path = OUT_DIR / f"{conv_id}.json"
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        meta = payload["metadata"]
+        print(f"{conv_id:28s} {meta['total_messages']:4d} msgs  "
+              f"{meta['date_range']['start']} → {meta['date_range']['end']}")
+
+    total = sum(c["metadata"]["total_messages"] for c in conversations.values())
+    print(f"\n{len(conversations)} conversas, {total} mensagens → {OUT_DIR}")
+
+
+if __name__ == "__main__":
+    main()

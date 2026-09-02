@@ -120,7 +120,7 @@ export function attachSearch(sidebar, conversationId, onResultClick) {
     lastQuery = query;
 
     // Load index on first search
-    if (!isIndexLoaded()) {
+    if (!isIndexLoaded(conversationId)) {
       try {
         await loadSearchIndex(conversationId);
       } catch (err) {

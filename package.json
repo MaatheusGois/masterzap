@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.js",
+    "verify": "npm run split-data && npm run test && npm run build && npm run test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",
@@ -19,5 +20,8 @@
     "jsdom": "^28.1.0",
     "vite": "^6.2.0",
     "vitest": "^3.0.0"
+  },
+  "dependencies": {
+    "html2canvas": "^1.4.1"
   }
 }
