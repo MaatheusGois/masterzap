@@ -142,16 +142,43 @@ describe('delivery', () => {
     expect(typeof item.data['image/png'].then).toBe('function');
   });
 
-  it('downloads when there is no share sheet and no clipboard', async () => {
-    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('downloaded');
-    expect(clickSpy).toHaveBeenCalled();
+  // Neither API is available: hand the image back so it can go on screen,
+  // where a long press reaches the browser's own share menu. Downloading
+  // silently was the old behaviour, and it is not what anyone asked for.
+  it('returns the image for preview when nothing can take it', async () => {
+    const result = await shareChatScreenshot(element(), 'Ciro');
+
+    expect(result.outcome).toBe('preview');
+    expect(result.blob).toBeInstanceOf(Blob);
+    expect(result.filename).toBe('masterwhats-ciro.png');
+    expect(clickSpy).not.toHaveBeenCalled();
   });
 
-  it('downloads when the clipboard refuses', async () => {
-    enableClipboard(vi.fn(() => Promise.reject(new Error('NotAllowedError'))));
+  it('returns the image for preview when the clipboard refuses it', async () => {
+    enableClipboard(vi.fn(() => Promise.reject(
+      Object.assign(new Error('no'), { name: 'NotAllowedError' })
+    )));
 
-    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('downloaded');
-    expect(clickSpy).toHaveBeenCalled();
+    const result = await shareChatScreenshot(element(), 'Ciro');
+
+    expect(result.outcome).toBe('preview');
+    expect(result.blob).toBeInstanceOf(Blob);
+  });
+
+  // What Rafael's browser reports: it shares text but not files, and its
+  // clipboard refuses images. Both doors shut.
+  it('previews when the browser shares text but not files', async () => {
+    navigator.share = vi.fn();
+    navigator.canShare = vi.fn(() => false);
+    enableClipboard(vi.fn(() => Promise.reject(
+      Object.assign(new Error('no'), { name: 'NotAllowedError' })
+    )));
+
+    const result = await shareChatScreenshot(element(), 'Ciro');
+
+    expect(result.outcome).toBe('preview');
+    expect(result.diag).toContain('csf=0');
+    expect(navigator.share).not.toHaveBeenCalled();
   });
 
   it('reports a capture that never produced an image', async () => {

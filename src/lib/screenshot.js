@@ -193,29 +193,18 @@ export function clearPendingScreenshot() {
   pending = null;
 }
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return 'downloaded';
-}
-
-/** Clipboard, then download, for a blob we already hold. */
-async function copyOrDownload(blob, filename) {
-  if (canUseClipboard()) {
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      return 'copied';
-    } catch {
-      // Refused or unsupported for images — fall through.
-    }
+/**
+ * Try the clipboard with a blob already in hand.
+ * @returns {Promise<boolean>} whether it took it
+ */
+export async function copyImageToClipboard(blob) {
+  if (!canUseClipboard()) return false;
+  try {
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+    return true;
+  } catch {
+    return false;
   }
-  return downloadBlob(blob, filename);
 }
 
 /**
@@ -227,7 +216,8 @@ async function copyOrDownload(blob, filename) {
  * @param {HTMLElement} element - the area to capture
  * @param {string} conversationName - used for the filename
  * @returns {Promise<{outcome: string, reason?: string}>}
- *   outcome is one of: shared | cancelled | retry | copied | downloaded | failed
+ *   outcome is one of: shared | cancelled | retry | copied | preview | failed
+ *   'preview' carries { blob, filename } for the caller to put on screen
  */
 export async function shareChatScreenshot(element, conversationName) {
   const filename = screenshotFilename(conversationName);
@@ -261,7 +251,10 @@ export async function shareChatScreenshot(element, conversationName) {
         return { outcome: 'retry', reason: err?.name, diag };
       }
 
-      return { outcome: await copyOrDownload(blob, filename), reason: err?.name, diag };
+      if (await copyImageToClipboard(blob)) {
+        return { outcome: 'copied', reason: err?.name, diag };
+      }
+      return { outcome: 'preview', blob, filename, reason: err?.name, diag };
     }
   }
 
@@ -276,9 +269,16 @@ export async function shareChatScreenshot(element, conversationName) {
       prepared = null;
       return { outcome: 'copied', diag };
     } catch (err) {
-      // Some builds reject a promise-valued ClipboardItem; retry with the blob.
+      // Some builds reject a promise-valued ClipboardItem, and some accept the
+      // call but refuse images outright. Capture once more and let the caller
+      // put the picture on screen, where the platform's own long-press menu can
+      // reach it.
       try {
-        return { outcome: await copyOrDownload(await captureElement(element), filename), reason: err?.name, diag };
+        const blob = await captureElement(element);
+        if (await copyImageToClipboard(blob)) {
+          return { outcome: 'copied', diag };
+        }
+        return { outcome: 'preview', blob, filename, reason: err?.name, diag };
       } catch (captureErr) {
         return { outcome: 'failed', reason: captureErr?.message || err?.name, diag };
       }
@@ -286,7 +286,7 @@ export async function shareChatScreenshot(element, conversationName) {
   }
 
   try {
-    return { outcome: downloadBlob(await captureElement(element), filename), diag };
+    return { outcome: 'preview', blob: await captureElement(element), filename, diag };
   } catch (err) {
     return { outcome: 'failed', reason: err?.message, diag };
   }

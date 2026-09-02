@@ -16,7 +16,10 @@ import { showProfileDrawer } from './components/ProfileDrawer.js';
 import { showSettingsDrawer } from './components/SettingsDrawer.js';
 import { loadReadConversations, markConversationRead } from './lib/read-state.js';
 import { showToast } from './components/Toast.js';
-import { shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot } from './lib/screenshot.js';
+import {
+  shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot, copyImageToClipboard,
+} from './lib/screenshot.js';
+import { showImagePreview } from './components/ImagePreview.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -29,6 +32,7 @@ let activeSearch = null;
 let pendingScrollTarget = null;
 let mainAreaSavedContent = null;
 let currentConversationId = null;
+let activeImagePreview = null;
 
 async function init() {
   const loadingScreen = document.getElementById('loading-screen');
@@ -100,6 +104,7 @@ async function init() {
   /** Close the chat (loader, context menu, right drawers). */
   function closeChat() {
     clearPreparedScreenshot();
+    if (activeImagePreview) { activeImagePreview.destroy(); activeImagePreview = null; }
     closeRightDrawers();
     if (activeLoader) { activeLoader.destroy(); activeLoader = null; }
     if (activeContextMenu) { activeContextMenu.destroy(); activeContextMenu = null; }
@@ -263,21 +268,27 @@ async function init() {
       || conversation.participants[0];
 
     async function shareScreenshot() {
-      const { outcome, reason, diag } = await shareChatScreenshot(mainArea, contactName);
-      console.info('[screenshot]', outcome, reason || '', diag);
+      const result = await shareChatScreenshot(mainArea, contactName);
+      console.info('[screenshot]', result.outcome, result.reason || '', result.diag);
 
       // 'shared' and 'cancelled' say themselves — the share sheet was the
       // confirmation, and dismissing it was a decision.
-      if (outcome === 'copied') showToast(mainArea, 'Imagem copiada');
-      if (outcome === 'retry') showToast(mainArea, 'Toque novamente para compartilhar');
+      if (result.outcome === 'copied') showToast(mainArea, 'Imagem copiada');
+      if (result.outcome === 'retry') showToast(mainArea, 'Toque novamente para compartilhar');
 
-      // A download means the platform refused both better options. There is no
-      // console on a phone, so the reason travels in the toast.
-      if (outcome === 'downloaded') {
-        showToast(mainArea, `Imagem salva · ${reason || 'sem share/clipboard'} · ${diag}`, 9000);
+      // The platform will neither share the file nor take it on the clipboard.
+      // Put the image on screen: long-pressing it reaches the browser's own
+      // share menu, which does know how to get to WhatsApp.
+      if (result.outcome === 'preview') {
+        activeImagePreview = showImagePreview(mainArea, result.blob, {
+          filename: result.filename,
+          onCopy: () => copyImageToClipboard(result.blob),
+          onClose: () => { activeImagePreview = null; },
+        });
       }
-      if (outcome === 'failed') {
-        showToast(mainArea, `Falhou: ${reason || '?'} · ${diag}`, 9000);
+
+      if (result.outcome === 'failed') {
+        showToast(mainArea, 'Não foi possível gerar a imagem');
       }
     }
 
