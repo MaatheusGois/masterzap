@@ -59,6 +59,30 @@ export function canShareFiles() {
   }
 }
 
+/**
+ * A one-line account of what this browser actually offers.
+ *
+ * There is no console on a phone, so when the delivery does not go the way it
+ * should this is the only way to find out which capability is missing rather
+ * than guessing at it.
+ *
+ *   sec  — secure context (https or localhost); without it none of the rest exists
+ *   shr  — navigator.share
+ *   csf  — navigator.canShare accepts a png file
+ *   clip — navigator.clipboard.write
+ *   ci   — the ClipboardItem constructor
+ */
+export function capabilityReport() {
+  const yes = (v) => (v ? '1' : '0');
+  return [
+    `sec=${yes(typeof window !== 'undefined' && window.isSecureContext)}`,
+    `shr=${yes(typeof navigator !== 'undefined' && navigator.share)}`,
+    `csf=${yes(canShareFiles())}`,
+    `clip=${yes(typeof navigator !== 'undefined' && navigator.clipboard?.write)}`,
+    `ci=${yes(typeof ClipboardItem !== 'undefined')}`,
+  ].join(' ');
+}
+
 function canUseClipboard() {
   return typeof navigator !== 'undefined'
     && !!navigator.clipboard?.write
@@ -207,6 +231,7 @@ async function copyOrDownload(blob, filename) {
  */
 export async function shareChatScreenshot(element, conversationName) {
   const filename = screenshotFilename(conversationName);
+  const diag = capabilityReport();
 
   if (canShareFiles()) {
     // Reuse the image from a tap that lost its activation, so this one is
@@ -220,23 +245,23 @@ export async function shareChatScreenshot(element, conversationName) {
         || await takePrepared(filename)
         || await captureElement(element);
     } catch (err) {
-      return { outcome: 'failed', reason: err?.message };
+      return { outcome: 'failed', reason: err?.message, diag };
     }
 
     try {
       await navigator.share({ files: [new File([blob], filename, { type: 'image/png' })] });
-      return { outcome: 'shared' };
+      return { outcome: 'shared', diag };
     } catch (err) {
-      if (err?.name === 'AbortError') return { outcome: 'cancelled' };
+      if (err?.name === 'AbortError') return { outcome: 'cancelled', diag };
 
       if (isSpentActivation(err)) {
         // The capture outlived the tap. Hold the image so the next one shares
         // immediately instead of falling back to something the user did not ask for.
         pending = { filename, blob, at: Date.now() };
-        return { outcome: 'retry', reason: err?.name };
+        return { outcome: 'retry', reason: err?.name, diag };
       }
 
-      return { outcome: await copyOrDownload(blob, filename), reason: err?.name };
+      return { outcome: await copyOrDownload(blob, filename), reason: err?.name, diag };
     }
   }
 
@@ -249,20 +274,20 @@ export async function shareChatScreenshot(element, conversationName) {
           || captureElement(element) }),
       ]);
       prepared = null;
-      return { outcome: 'copied' };
+      return { outcome: 'copied', diag };
     } catch (err) {
       // Some builds reject a promise-valued ClipboardItem; retry with the blob.
       try {
-        return { outcome: await copyOrDownload(await captureElement(element), filename) };
+        return { outcome: await copyOrDownload(await captureElement(element), filename), reason: err?.name, diag };
       } catch (captureErr) {
-        return { outcome: 'failed', reason: captureErr?.message || err?.name };
+        return { outcome: 'failed', reason: captureErr?.message || err?.name, diag };
       }
     }
   }
 
   try {
-    return { outcome: downloadBlob(await captureElement(element), filename) };
+    return { outcome: downloadBlob(await captureElement(element), filename), diag };
   } catch (err) {
-    return { outcome: 'failed', reason: err?.message };
+    return { outcome: 'failed', reason: err?.message, diag };
   }
 }

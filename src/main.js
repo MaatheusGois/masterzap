@@ -263,16 +263,21 @@ async function init() {
       || conversation.participants[0];
 
     async function shareScreenshot() {
-      const { outcome, reason } = await shareChatScreenshot(mainArea, contactName);
+      const { outcome, reason, diag } = await shareChatScreenshot(mainArea, contactName);
+      console.info('[screenshot]', outcome, reason || '', diag);
 
       // 'shared' and 'cancelled' say themselves — the share sheet was the
       // confirmation, and dismissing it was a decision.
       if (outcome === 'copied') showToast(mainArea, 'Imagem copiada');
-      if (outcome === 'downloaded') showToast(mainArea, 'Imagem salva');
       if (outcome === 'retry') showToast(mainArea, 'Toque novamente para compartilhar');
+
+      // A download means the platform refused both better options. There is no
+      // console on a phone, so the reason travels in the toast.
+      if (outcome === 'downloaded') {
+        showToast(mainArea, `Imagem salva · ${reason || 'sem share/clipboard'} · ${diag}`, 9000);
+      }
       if (outcome === 'failed') {
-        console.error('Screenshot failed:', reason);
-        showToast(mainArea, 'Não foi possível gerar a imagem');
+        showToast(mainArea, `Falhou: ${reason || '?'} · ${diag}`, 9000);
       }
     }
 

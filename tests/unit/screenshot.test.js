@@ -76,7 +76,7 @@ describe('delivery', () => {
     enableShare(() => Promise.resolve());
     enableClipboard(vi.fn());
 
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'shared' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('shared');
     expect(navigator.clipboard.write).not.toHaveBeenCalled();
   });
 
@@ -84,7 +84,7 @@ describe('delivery', () => {
     enableShare(() => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })));
     enableClipboard(vi.fn());
 
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'cancelled' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('cancelled');
     expect(navigator.clipboard.write).not.toHaveBeenCalled();
   });
 
@@ -108,7 +108,7 @@ describe('delivery', () => {
     const capturesSoFar = html2canvas.mock.calls.length;
 
     enableShare(() => Promise.resolve());
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'shared' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('shared');
     expect(html2canvas).toHaveBeenCalledTimes(capturesSoFar);
   });
 
@@ -136,7 +136,7 @@ describe('delivery', () => {
     const write = vi.fn(() => Promise.resolve());
     enableClipboard(write);
 
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'copied' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('copied');
 
     const [[item]] = write.mock.calls[0];
     expect(typeof item.data['image/png'].then).toBe('function');
@@ -186,7 +186,7 @@ describe('preparing ahead of the tap', () => {
     prepareScreenshot(element(), 'Ciro');
     await new Promise(r => setTimeout(r, 0));
 
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'shared' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('shared');
     expect(html2canvas).toHaveBeenCalledTimes(1);
   });
 
@@ -214,7 +214,7 @@ describe('preparing ahead of the tap', () => {
     prepareScreenshot(element(), 'Ciro');
     await new Promise(r => setTimeout(r, 0));
 
-    expect(await shareChatScreenshot(element(), 'Ciro')).toEqual({ outcome: 'shared' });
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('shared');
   });
 });
 
@@ -285,5 +285,26 @@ describe('capability probes', () => {
 
   it('hasSecureContext reports what the browser says', () => {
     expect(typeof hasSecureContext()).toBe('boolean');
+  });
+});
+
+describe('capabilityReport()', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('names every capability the delivery depends on', async () => {
+    const { capabilityReport } = await import('../../src/lib/screenshot.js');
+
+    for (const key of ['sec', 'shr', 'csf', 'clip', 'ci']) {
+      expect(capabilityReport()).toContain(`${key}=`);
+    }
+  });
+
+  it('reports each capability as present or absent', async () => {
+    const { capabilityReport } = await import('../../src/lib/screenshot.js');
+    navigator.share = undefined;
+    navigator.canShare = undefined;
+
+    expect(capabilityReport()).toContain('shr=0');
+    expect(capabilityReport()).toContain('csf=0');
   });
 });
