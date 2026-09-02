@@ -5,15 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "python3 scripts/split_data.py && node scripts/export.mjs && vite build",
+    "build": "python3 scripts/split_data.py && node scripts/export.mjs && vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
     "split-data": "python3 scripts/split_data.py",
     "export": "node scripts/export.mjs",
+    "prerender": "node scripts/prerender.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test --config tests/e2e/playwright.config.js",
-    "verify": "npm run split-data && npm run export && npm run test && npm run build && npm run test:e2e"
+    "verify": "npm run build && npm run test && npm run test:e2e"
   },
   "devDependencies": {
     "@playwright/test": "^1.50.0",

@@ -41,6 +41,10 @@ async function init() {
   const app = document.getElementById('app');
   const loadStart = Date.now();
 
+  // A pre-rendered /chat/<id> page carries the conversation as plain HTML for
+  // crawlers; the app is about to draw the real thing.
+  document.getElementById('prerender')?.remove();
+
   while (app.firstChild) app.removeChild(app.firstChild);
 
   const wrapper = document.createElement('div');

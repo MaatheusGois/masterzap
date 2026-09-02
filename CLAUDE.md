@@ -17,6 +17,7 @@ npm run dev           # Start dev server
   - 65,772 messages from DV ↔ Martha Graeff (2024-02-10 to 2025-08-13), in `data/messages.json`
   - 615 messages from the Federal Police report IPJ-A 3298613/2026 (23 conversations, including DV ↔ Alexandre de Moraes) — see `data/ipj-3298613/README.md`
 - **Chunking**: `scripts/split_data.py` splits every source conversation into per-date JSON files in `public/data/`
+- **Pre-render**: `scripts/prerender.mjs` runs after `vite build`; for each conversation writes `dist/chat/<id>/index.html` (built app page retitled, profile + first messages as plain HTML in `<article id="prerender">`, a one-line script sets the hash so the app opens that chat; main.js removes the article at boot). Also `dist/llms-full.txt` and `dist/sitemap.xml`. Shared helpers in `scripts/lib/corpus.mjs`
 - **Export**: `scripts/export.mjs` writes `public/export/` — one `.md` and `.json` per conversation, one of each with everything, and a zip. Reads the conversation list from `public/data/conversations.json`, messages from `data/`, profiles from `src/lib/profile-content.js`
 - **Lazy loading**: Only loads day-chunks as user scrolls, with LRU cache
 
@@ -51,6 +52,7 @@ npm run build         # Production build
 npm run preview       # Preview production build
 npm run split-data    # Regenerate data chunks (all conversations)
 npm run export        # Clean export (md/json per conversation + zip) into public/export/
+npm run prerender     # After vite build: dist/chat/<id>/index.html, dist/llms-full.txt, dist/sitemap.xml
 npm run test          # Run unit tests (Vitest)
 npm run test:watch    # Unit tests in watch mode
 npm run test:e2e      # E2E tests (Playwright; starts its own dev server)

@@ -1,0 +1,132 @@
+// @vitest-environment node
+//
+// Guards on what the build hands to crawlers: a real page per conversation,
+// the whole corpus as text, and a sitemap that lists them. Read from dist, so
+// `npm run build` comes first.
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
+
+const ROOT = join(import.meta.dirname, '../..');
+const DIST = join(ROOT, 'dist');
+const SITE = 'https://www.masterwhats.com.br';
+
+const conversations = JSON.parse(
+  readFileSync(join(ROOT, 'public/data/conversations.json'), 'utf-8')
+).conversations;
+
+const page = (id) => readFileSync(join(DIST, 'chat', id, 'index.html'), 'utf-8');
+const ldBlocks = (html) => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+  .map(m => JSON.parse(m[1]));
+
+describe('one page per conversation', () => {
+  it('exists for every conversation the site lists', () => {
+    for (const conv of conversations) {
+      expect(existsSync(join(DIST, 'chat', conv.id, 'index.html')), conv.id).toBe(true);
+    }
+  });
+
+  it('is titled and canonical for that conversation, not the home page', () => {
+    for (const conv of conversations) {
+      const html = page(conv.id);
+      expect(html, conv.id).toContain(`<link rel="canonical" href="${SITE}/chat/${conv.id}">`);
+      expect(html, conv.id).toContain(`<meta property="og:url" content="${SITE}/chat/${conv.id}">`);
+      expect(html, conv.id).toMatch(/<title>Daniel Vorcaro ↔ .+ — MasterWhats<\/title>/);
+    }
+  });
+
+  it('carries the conversation as plain HTML, with the contact named', () => {
+    const html = page('ciro-soares');
+    expect(html).toContain('<article id="prerender">');
+    expect(html).toContain('<h1>Daniel Vorcaro ↔ Ciro Soares</h1>');
+    expect(html).toContain('<h2>Quem é Ciro Soares</h2>');
+    expect(html).toContain('<h2>Proveniência</h2>');
+    expect(html).toMatch(/<time datetime="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-03:00">/);
+    expect(html).toContain('laudo p. ');
+  });
+
+  it('shows only a preview of the big one and says where the rest is', () => {
+    const html = page('martha-graeff');
+    expect(html).toContain('(primeiras 200 mensagens)');
+    expect(html).toContain('/export/masterwhats-martha-graeff.md');
+    expect(html.length).toBeLessThan(400_000);
+  });
+
+  it('describes itself as a Conversation in the dataset', () => {
+    for (const conv of conversations) {
+      const blocks = ldBlocks(page(conv.id));
+      expect(blocks, conv.id).toHaveLength(1);
+      const [ld] = blocks;
+      expect(ld['@type']).toBe('Conversation');
+      expect(ld['@id']).toBe(`${SITE}/chat/${conv.id}`);
+      expect(ld.isPartOf['@id']).toBe(`${SITE}/#dataset`);
+      expect(ld.encoding.map(e => e.contentUrl)).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
+      if (conv.source?.startsWith('IPJ-A')) expect(ld.isBasedOn['@type'], conv.id).toBe('DigitalDocument');
+    }
+  });
+
+  it('opens that chat in the app', () => {
+    for (const conv of conversations) {
+      expect(page(conv.id), conv.id).toContain(`if(!location.hash)location.replace('#/chat/${conv.id}')`);
+    }
+  });
+
+  it('loads the same bundle the home page does', () => {
+    const home = readFileSync(join(DIST, 'index.html'), 'utf-8');
+    const [bundle] = home.match(/\/assets\/index-[\w-]+\.js/);
+    expect(existsSync(join(DIST, bundle))).toBe(true);
+    for (const conv of conversations) expect(page(conv.id), conv.id).toContain(bundle);
+  });
+
+  it('leaves no site-only markup in the article', () => {
+    for (const conv of conversations) {
+      const [article] = page(conv.id).match(/<article id="prerender">[\s\S]*?<\/article>/);
+      expect(article, conv.id).not.toMatch(/\{[^}]+\}\[[^\]]+\]/);
+      expect(article, conv.id).not.toContain('[action:');
+    }
+  });
+});
+
+describe('the home page', () => {
+  it('describes the corpus as a Dataset with downloads', () => {
+    const blocks = ldBlocks(readFileSync(join(DIST, 'index.html'), 'utf-8'));
+    const dataset = blocks.find(b => b['@type'] === 'Dataset');
+    expect(dataset['@id']).toBe(`${SITE}/#dataset`);
+    expect(dataset.distribution.map(d => d.contentUrl)).toContain(`${SITE}/export/masterwhats-export.zip`);
+  });
+});
+
+describe('llms-full.txt', () => {
+  const text = () => readFileSync(join(DIST, 'llms-full.txt'), 'utf-8');
+
+  it('names every conversation and points at its Markdown', () => {
+    const t = text();
+    expect(t).toContain(`## Conversas (${conversations.length})`);
+    for (const conv of conversations) {
+      expect(t, conv.id).toContain(`${SITE}/chat/${conv.id}`);
+      expect(t, conv.id).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
+    }
+  });
+
+  it('carries the profiles with their sources as links, and nothing site-only', () => {
+    const t = text();
+    expect(t).toContain('## Quem é Daniel Vorcaro');
+    expect(t).toMatch(/\[[^\]]+\]\(https?:\/\/[^)]+\)/);
+    expect(t).not.toMatch(/\{[^}]+\}\[[^\]]+\]/);
+    expect(t).not.toContain('[action:');
+  });
+});
+
+describe('sitemap.xml', () => {
+  it('lists home, every page and every Markdown', () => {
+    const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
+    const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
+    expect(locs).toContain(`${SITE}/`);
+    for (const conv of conversations) {
+      expect(locs, conv.id).toContain(`${SITE}/chat/${conv.id}`);
+      expect(locs, conv.id).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
+    }
+    expect(locs.some(l => l.includes('#'))).toBe(false);
+  });
+});

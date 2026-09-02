@@ -43,6 +43,10 @@ Daniel Vorcaro, dono do Banco Master, foi preso pela Polícia Federal em novembr
 - "Acredita que o presidente bacen ja falou da nossa casa" — sobre a casa de Miami
 - "O pior de ontem foi ter o bolsonaro" — Vorcaro sobre Bolsonaro
 
+## Conteúdo completo em texto
+- https://www.masterwhats.com.br/llms-full.txt — sobre, os 24 perfis com fontes, os destaques, e o link do Markdown de cada conversa
+- Cada conversa tem página própria em https://www.masterwhats.com.br/chat/<id> (perfil e primeiras mensagens em HTML puro)
+
 ## Export limpo
 Tudo que o site mostra, em texto, sem o site:
 - Uma conversa em Markdown: https://www.masterwhats.com.br/export/masterwhats-alexandre-de-moraes.md (troque o id; os ids estão em https://www.masterwhats.com.br/data/conversations.json)

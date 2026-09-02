@@ -14,17 +14,33 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
+      testIgnore: /prerender/,
       use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 720 } },
     },
     {
       name: 'mobile',
+      testIgnore: /prerender/,
       use: { ...devices['Pixel 5'] },
     },
+    // The pre-rendered /chat/<id> pages only exist in the built site.
+    {
+      name: 'prerender',
+      testMatch: /prerender/,
+      use: { ...devices['Desktop Chrome'], baseURL: 'http://localhost:4173' },
+    },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    cwd: '../..',
-  },
+  webServer: [
+    {
+      command: 'npm run dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      cwd: '../..',
+    },
+    {
+      command: 'npx vite preview --port 4173',
+      url: 'http://localhost:4173',
+      reuseExistingServer: !process.env.CI,
+      cwd: '../..',
+    },
+  ],
 });
