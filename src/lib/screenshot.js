@@ -41,21 +41,51 @@ export function hasSecureContext() {
   return typeof window !== 'undefined' && window.isSecureContext === true;
 }
 
+/** The eight-byte PNG signature — enough to look like a real file. */
+const PNG_SIGNATURE = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+
 /**
  * Whether this platform can share image files at all.
  *
- * Probed with an empty file: canShare() only inspects the type, and asking
- * before the capture keeps the decision out of the activation window.
+ * The probe carries actual bytes. An empty File is the obvious thing to reach
+ * for and it is wrong: some implementations validate the payload and answer
+ * "no" for a zero-byte file, which reads as "this device cannot share images"
+ * when it can.
+ *
+ * Answered before the capture so the decision stays out of the tap's window.
  */
 export function canShareFiles() {
   if (typeof navigator === 'undefined' || !navigator.share || !navigator.canShare) {
     return false;
   }
   try {
-    const probe = new File([], 'probe.png', { type: 'image/png' });
+    const probe = new File([PNG_SIGNATURE], 'probe.png', { type: 'image/png' });
     return navigator.canShare({ files: [probe] });
   } catch {
     return false;
+  }
+}
+
+/**
+ * Hand a blob to the native share sheet.
+ *
+ * Meant to be called straight from a click, so the activation is fresh and the
+ * image is already in hand — no probing, no capture, nothing between the tap
+ * and the call. Whether the platform accepts it is then the platform's answer,
+ * not a guess made earlier from a probe.
+ *
+ * @returns {Promise<'shared'|'cancelled'|'unsupported'>}
+ */
+export async function shareImageFile(blob, filename) {
+  if (typeof navigator === 'undefined' || !navigator.share) return 'unsupported';
+  try {
+    await navigator.share({
+      files: [new File([blob], filename, { type: 'image/png' })],
+    });
+    return 'shared';
+  } catch (err) {
+    if (err?.name === 'AbortError') return 'cancelled';
+    return 'unsupported';
   }
 }
 

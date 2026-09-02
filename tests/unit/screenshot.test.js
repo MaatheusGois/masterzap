@@ -335,3 +335,63 @@ describe('capabilityReport()', () => {
     expect(capabilityReport()).toContain('csf=0');
   });
 });
+
+describe('shareImageFile()', () => {
+  beforeEach(() => {
+    navigator.share = undefined;
+    navigator.canShare = undefined;
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('hands the blob straight to the share sheet', async () => {
+    const { shareImageFile } = await import('../../src/lib/screenshot.js');
+    navigator.share = vi.fn(() => Promise.resolve());
+
+    const blob = new Blob(['png'], { type: 'image/png' });
+    expect(await shareImageFile(blob, 'a.png')).toBe('shared');
+
+    // No canShare probe in the way: the platform answers for itself.
+    const [{ files }] = navigator.share.mock.calls[0];
+    expect(files[0].name).toBe('a.png');
+    expect(files[0].type).toBe('image/png');
+  });
+
+  it('separates a dismissal from a refusal', async () => {
+    const { shareImageFile } = await import('../../src/lib/screenshot.js');
+    const blob = new Blob(['png'], { type: 'image/png' });
+
+    navigator.share = vi.fn(() => Promise.reject(
+      Object.assign(new Error('x'), { name: 'AbortError' })
+    ));
+    expect(await shareImageFile(blob, 'a.png')).toBe('cancelled');
+
+    navigator.share = vi.fn(() => Promise.reject(
+      Object.assign(new Error('x'), { name: 'NotAllowedError' })
+    ));
+    expect(await shareImageFile(blob, 'a.png')).toBe('unsupported');
+  });
+
+  it('is unsupported when there is no share at all', async () => {
+    const { shareImageFile } = await import('../../src/lib/screenshot.js');
+    expect(await shareImageFile(new Blob([]), 'a.png')).toBe('unsupported');
+  });
+});
+
+describe('canShareFiles() probe', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // An empty File is the obvious probe and it is wrong: implementations that
+  // validate the payload answer "no", which reads as "this device cannot share
+  // images" when it can.
+  it('probes with a file that has bytes in it', async () => {
+    const { canShareFiles } = await import('../../src/lib/screenshot.js');
+    navigator.share = vi.fn();
+    navigator.canShare = vi.fn(() => true);
+
+    canShareFiles();
+
+    const [{ files }] = navigator.canShare.mock.calls[0];
+    expect(files[0].size).toBeGreaterThan(0);
+    expect(files[0].type).toBe('image/png');
+  });
+});

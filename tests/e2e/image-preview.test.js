@@ -7,6 +7,11 @@ import { test, expect } from '@playwright/test';
 // same capabilities.
 
 const clipShimRefusesImages = () => {
+  // The profile Rafael's phone reports: share exists and takes text, canShare
+  // says no to files, and the clipboard refuses images.
+  navigator.share = () => Promise.reject(
+    Object.assign(new Error('refused'), { name: 'NotAllowedError' })
+  );
   navigator.canShare = () => false;
   Object.defineProperty(navigator, 'clipboard', {
     configurable: true,
@@ -31,8 +36,10 @@ test.describe('Image preview fallback', () => {
     await openPrint(page);
 
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+    // The wording differs depending on whether a share button is offered; both
+    // point at the long press, which is the guaranteed way out.
     await expect(page.locator('.image-preview-hint'))
-      .toContainText('Toque e segure');
+      .toContainText('toque e segure', { ignoreCase: true });
   });
 
   test('shows the captured image, loaded', async ({ page }) => {
@@ -43,22 +50,77 @@ test.describe('Image preview fallback', () => {
     expect(await img.evaluate(el => el.naturalWidth)).toBeGreaterThan(0);
   });
 
-  test('offers copying and downloading', async ({ page }) => {
+  test('offers sharing, copying and downloading', async ({ page }) => {
     await openPrint(page);
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
 
     const labels = await page.locator('.image-preview-action').allTextContents();
-    expect(labels).toEqual(['Copiar', 'Baixar']);
+    expect(labels).toEqual(['Compartilhar', 'Copiar', 'Baixar']);
+  });
+
+  // The click is a fresh activation and the image is already made, so this is
+  // the platform's best shot at the share sheet.
+  test('the share button reaches the share sheet with the image', async ({ page }) => {
+    await page.goto('/#/chat/ciro-soares');
+    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+    await page.evaluate(() => {
+      window.__shared = null;
+      navigator.canShare = () => false;              // refuses the probe
+      navigator.share = (data) => {                  // but takes the real call
+        window.__shared = (data.files || []).map(f => ({ name: f.name, type: f.type }));
+        return Promise.resolve();
+      };
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { write: () => Promise.reject(Object.assign(new Error('no'), { name: 'NotAllowedError' })) },
+      });
+    });
+    await page.locator('.chat-header button[aria-label="Menu"]').click();
+    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    await page.locator('.image-preview-action', { hasText: 'Compartilhar' }).click();
+
+    await expect.poll(() => page.evaluate(() => window.__shared)).not.toBeNull();
+    const shared = await page.evaluate(() => window.__shared);
+    expect(shared[0].type).toBe('image/png');
+    // Sharing succeeded, so the overlay has done its job and gets out of the way.
+    await expect(page.locator('.image-preview')).toHaveCount(0);
+  });
+
+  test('says so and keeps the long press when the platform refuses', async ({ page }) => {
+    await page.goto('/#/chat/ciro-soares');
+    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+    await page.evaluate(() => {
+      navigator.canShare = () => false;
+      navigator.share = () => Promise.reject(
+        Object.assign(new Error('no'), { name: 'NotAllowedError' })
+      );
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { write: () => Promise.reject(Object.assign(new Error('no'), { name: 'NotAllowedError' })) },
+      });
+    });
+    await page.locator('.chat-header button[aria-label="Menu"]').click();
+    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    await page.locator('.image-preview-action', { hasText: 'Compartilhar' }).click();
+
+    await expect(page.locator('.image-preview-hint')).toContainText('não compartilha imagens');
+    await expect(page.locator('.image-preview-action', { hasText: 'Compartilhar' })).toHaveCount(0);
+    await expect(page.locator('.image-preview-img')).toBeVisible();
   });
 
   test('says so when the clipboard refuses again', async ({ page }) => {
     await openPrint(page);
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
 
-    await page.locator('.image-preview-action', { hasText: 'Copiar' }).click();
+    const copy = page.locator('.image-preview-action', { hasText: 'Copiar' });
+    await copy.click();
 
-    await expect(page.locator('.image-preview-action').first())
-      .toHaveText('Não foi possível copiar');
+    await expect(page.locator('.image-preview-action', { hasText: 'Não foi possível copiar' }))
+      .toBeVisible();
   });
 
   test('closes on the X', async ({ page }) => {

@@ -910,7 +910,7 @@
   z-index: 1200;
   display: flex;
   flex-direction: column;
-  background-color: rgba(11, 20, 26, 0.97);
+  background-color: #0b141a;
   opacity: 0;
   transition: opacity 160ms ease;
 }
@@ -987,8 +987,11 @@
 }
 
 .image-preview-action {
-  min-width: 120px;
-  padding: 11px 20px;
+  /* Three buttons have to fit a 360px phone without wrapping their labels. */
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 11px 12px;
+  white-space: nowrap;
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 22px;
   background: transparent;

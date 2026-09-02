@@ -17,7 +17,8 @@ import { showSettingsDrawer } from './components/SettingsDrawer.js';
 import { loadReadConversations, markConversationRead } from './lib/read-state.js';
 import { showToast } from './components/Toast.js';
 import {
-  shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot, copyImageToClipboard,
+  shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot,
+  copyImageToClipboard, shareImageFile,
 } from './lib/screenshot.js';
 import { showImagePreview } from './components/ImagePreview.js';
 
@@ -282,6 +283,11 @@ async function init() {
       if (result.outcome === 'preview') {
         activeImagePreview = showImagePreview(mainArea, result.blob, {
           filename: result.filename,
+          // One more go at the share sheet, this time from a plain click with
+          // the image already made — the best shot the platform will get.
+          onShare: navigator.share
+            ? () => shareImageFile(result.blob, result.filename)
+            : null,
           onCopy: () => copyImageToClipboard(result.blob),
           onClose: () => { activeImagePreview = null; },
         });

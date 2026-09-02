@@ -4,9 +4,14 @@
  *
  * Not every browser implements Web Share Level 2 (sharing *files*, as opposed
  * to text and links), and some that expose navigator.clipboard still refuse to
- * write images to it. On those, an image put on the page is the one thing that
- * always works: long-pressing it hands over to the browser's own share and save
- * menu, which knows how to reach WhatsApp.
+ * write images to it.
+ *
+ * The Compartilhar button here gets one more go at the share sheet, and it is
+ * the attempt most likely to succeed: the click is a fresh user activation and
+ * the image is already made, so nothing sits between the tap and the call —
+ * unlike the first attempt, which had to redraw the DOM first. If the platform
+ * still says no, the image is on the page and a long press reaches the
+ * browser's own share and save menu, which knows how to get to WhatsApp.
  *
  * Security note: innerHTML is used only with static markup; the image arrives
  * as an object URL, assigned through the src property.
@@ -21,11 +26,12 @@ const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" 
  * @param {Blob} blob
  * @param {object} options
  * @param {string} options.filename - used by the download action
+ * @param {function} [options.onShare] - resolves 'shared'|'cancelled'|'unsupported'
  * @param {function} [options.onCopy] - returns a Promise<boolean>; hidden when absent
  * @param {function} [options.onClose]
  * @returns {{ destroy: function }}
  */
-export function showImagePreview(container, blob, { filename, onCopy, onClose } = {}) {
+export function showImagePreview(container, blob, { filename, onShare, onCopy, onClose } = {}) {
   const url = URL.createObjectURL(blob);
 
   const overlay = document.createElement('div');
@@ -40,9 +46,7 @@ export function showImagePreview(container, blob, { filename, onCopy, onClose } 
     </div>
     <div class="image-preview-body">
       <img class="image-preview-img" alt="Print da conversa" />
-      <p class="image-preview-hint">
-        Toque e segure na imagem para compartilhar ou salvar.
-      </p>
+      <p class="image-preview-hint"></p>
     </div>
     <div class="image-preview-actions"></div>
   `;
@@ -58,6 +62,29 @@ export function showImagePreview(container, blob, { filename, onCopy, onClose } 
     btn.addEventListener('click', handler);
     actions.appendChild(btn);
     return btn;
+  }
+
+  const hint = overlay.querySelector('.image-preview-hint');
+  hint.textContent = onShare
+    ? 'Ou toque e segure na imagem para usar o menu do navegador.'
+    : 'Toque e segure na imagem para compartilhar ou salvar.';
+
+  // The second attempt at the share sheet, from a fresh click.
+  if (onShare) {
+    const shareBtn = addAction('Compartilhar', async () => {
+      shareBtn.disabled = true;
+      const result = await onShare();
+      shareBtn.disabled = false;
+
+      if (result === 'shared') { close(); return; }
+      if (result === 'cancelled') return;
+
+      // The platform refused. Say so once and leave the long press as the way
+      // out, rather than offering a button that does nothing.
+      shareBtn.remove();
+      hint.textContent = 'Seu navegador não compartilha imagens. '
+        + 'Toque e segure na imagem para usar o menu do sistema.';
+    }, 'primary');
   }
 
   // Offered only where the clipboard actually took the image before.
@@ -80,7 +107,7 @@ export function showImagePreview(container, blob, { filename, onCopy, onClose } 
     document.body.appendChild(link);
     link.click();
     link.remove();
-  }, 'primary');
+  }, onShare ? '' : 'primary');
 
   function destroy() {
     document.removeEventListener('keydown', onKeydown, true);
