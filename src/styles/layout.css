@@ -100,6 +100,7 @@
 .sidebar {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   width: 30%;
   min-width: 340px;
   max-width: 500px;
@@ -308,6 +309,14 @@
 }
 
 /* Lock message right after the last conversation item */
+/* Shown when a filter tab leaves the list empty. */
+.sidebar-empty-filter {
+  padding: 32px 24px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--WDS-content-deemphasized);
+}
+
 .sidebar-lock-message {
   display: flex;
   align-items: center;
@@ -331,7 +340,13 @@
 /* Conversation list */
 .conversation-list {
   flex: 1;
+  /* A flex item defaults to min-height:auto, which lets it grow to its content
+     instead of scrolling. Without this the list has no scroll of its own — and
+     since body is overflow:hidden, nothing scrolls at all. */
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 .conversation-item {
@@ -344,8 +359,20 @@
   transition: background-color 120ms;
 }
 
-.conversation-item:hover {
-  background-color: var(--WDS-surface-highlight);
+/* Hover only where there is a real pointer. On touch, :hover latches onto the
+   last element the finger passed over and never clears — dragging through the
+   list would leave a trail of highlighted rows. */
+@media (hover: hover) and (pointer: fine) {
+  .conversation-item:hover {
+    background-color: var(--WDS-surface-highlight);
+  }
+}
+
+/* Touch gets its feedback from the press itself, which does clear on release. */
+@media (hover: none) {
+  .conversation-item:active {
+    background-color: var(--WDS-surface-highlight);
+  }
 }
 
 .conversation-item.active {

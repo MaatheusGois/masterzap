@@ -95,7 +95,7 @@ export function showMobileSearchBar(chatView, conversationId, { onNavigate, onDa
       return;
     }
 
-    if (!isIndexLoaded()) {
+    if (!isIndexLoaded(conversationId)) {
       try { await loadSearchIndex(conversationId); } catch { return; }
     }
 

@@ -115,7 +115,7 @@ export function showChatSearchDrawer(mainArea, conversationId, { dateIndex, onRe
     if (query === lastQuery) return;
     lastQuery = query;
 
-    if (!isIndexLoaded()) {
+    if (!isIndexLoaded(conversationId)) {
       try { await loadSearchIndex(conversationId); } catch { return; }
     }
 
