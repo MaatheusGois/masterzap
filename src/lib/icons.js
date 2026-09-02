@@ -26,3 +26,5 @@ export const ICON_MEETBALL = `<svg viewBox="0 0 24 24" width="20" height="20" fi
 export const ICON_CHEVRON_DW = `<svg viewBox="0 0 12 12" width="12" height="12" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.4242 3.57576C10.6586 3.81007 10.6586 4.18997 10.4242 4.42429L6.42424 8.42429C6.18992 8.6586 5.81003 8.6586 5.57571 8.42429L1.57571 4.42429C1.3414 4.18997 1.3414 3.81007 1.57571 3.57576C1.81003 3.34145 2.18993 3.34145 2.42424 3.57576L5.99998 7.1515L9.57571 3.57576C9.81003 3.34145 10.1899 3.34145 10.4242 3.57576Z"/></svg>`;
 
 export const ICON_MASTERZAP_LOGO = `<img src="/assets/masterzap-logo.png" width="20" height="20" alt="" style="vertical-align:middle;" />`;
+
+export const ICON_DOWNLOAD = `<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M4 17.5v1a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-1"/></svg>`;

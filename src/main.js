@@ -21,6 +21,7 @@ import {
   shareImageFile, canShareFiles,
 } from './lib/screenshot.js';
 import { showImagePreview } from './components/ImagePreview.js';
+import { exportUrl, EXPORT_ALL_URL, downloadFile } from './lib/export.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -323,6 +324,7 @@ async function init() {
       onAbout: openSettings,
       onSearch: toggleSearch,
       onScreenshot: shareScreenshot,
+      onExport: (format) => downloadFile(exportUrl(conversation.id, format)),
       onMenuOpen: () => prepareScreenshot(mainArea, contactName),
       onContactClick: () => {
         // Only one right drawer at a time
@@ -465,6 +467,7 @@ async function init() {
     readConversations,
     onProfile: openProfile,
     onAbout: openSettings,
+    onExportAll: () => downloadFile(EXPORT_ALL_URL),
     onSelect: (id) => {
       // Close profile/settings if open before navigating
       closeProfile();

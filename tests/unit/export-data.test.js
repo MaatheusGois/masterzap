@@ -1,0 +1,138 @@
+// @vitest-environment node
+//
+// Guards on the export the build writes to public/export. The files are what a
+// reader, a script or a model gets without the app in between, so what matters
+// is that each one stands on its own: says where it came from, keeps every
+// message, and leaves nothing that only makes sense inside the site.
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync, existsSync, statSync } from 'fs';
+import { join } from 'path';
+import JSZip from 'jszip';
+
+const ROOT = join(import.meta.dirname, '../..');
+const DATA_DIR = join(ROOT, 'public/data');
+const EXPORT_DIR = join(ROOT, 'public/export');
+
+const conversations = JSON.parse(
+  readFileSync(join(DATA_DIR, 'conversations.json'), 'utf-8')
+).conversations;
+
+const md = (id) => readFileSync(join(EXPORT_DIR, `masterwhats-${id}.md`), 'utf-8');
+const json = (id) => JSON.parse(readFileSync(join(EXPORT_DIR, `masterwhats-${id}.json`), 'utf-8'));
+
+describe('one pair of files per conversation', () => {
+  it('writes a .md and a .json for every conversation the site lists', () => {
+    for (const conv of conversations) {
+      expect(existsSync(join(EXPORT_DIR, `masterwhats-${conv.id}.md`)), conv.id).toBe(true);
+      expect(existsSync(join(EXPORT_DIR, `masterwhats-${conv.id}.json`)), conv.id).toBe(true);
+    }
+  });
+});
+
+describe('the JSON', () => {
+  it('keeps every message', () => {
+    for (const conv of conversations) {
+      expect(json(conv.id).messages.length, conv.id).toBe(conv.total_messages);
+    }
+  });
+
+  it('stamps every timestamp with its UTC offset', () => {
+    for (const conv of conversations) {
+      for (const msg of json(conv.id).messages) {
+        expect(msg.timestamp, `${conv.id} #${msg.id}`).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-03:00$/);
+      }
+    }
+  });
+
+  it('says where it came from', () => {
+    for (const conv of conversations) {
+      const { export: meta, conversation } = json(conv.id);
+      expect(meta.site).toBe('https://www.masterwhats.com.br');
+      expect(meta.timezone).toBe('America/Sao_Paulo');
+      expect(conversation.id).toBe(conv.id);
+      expect(conversation.source, conv.id).toBeTruthy();
+    }
+  });
+
+  it('keeps the page and figure of the police report on every message that has one', () => {
+    const fromReport = conversations.filter(c => c.source?.startsWith('IPJ-A'));
+    expect(fromReport.length).toBeGreaterThan(0);
+    for (const conv of fromReport) {
+      for (const msg of json(conv.id).messages) {
+        expect(msg.source_page, `${conv.id} #${msg.id}`).toBeGreaterThan(0);
+      }
+    }
+  });
+});
+
+describe('the Markdown', () => {
+  it('opens with a provenance block', () => {
+    for (const conv of conversations) {
+      const text = md(conv.id);
+      expect(text, conv.id).toMatch(/^# /);
+      expect(text, conv.id).toContain('## Proveniência');
+      expect(text, conv.id).toContain('| Fonte |');
+      expect(text, conv.id).toContain('| Fuso dos horários | America/Sao_Paulo');
+    }
+  });
+
+  it('carries the contact profile with its sources, as links', () => {
+    const text = md('alexandre-de-moraes');
+    expect(text).toContain('## Quem é Alexandre de Moraes');
+    expect(text).toMatch(/\[[^\]]+\]\(https?:\/\/[^)]+\)/);
+    expect(text).toContain('## Fontes');
+  });
+
+  it('leaves no site-only markup behind', () => {
+    for (const conv of conversations) {
+      const text = md(conv.id);
+      expect(text, `${conv.id} has raw {text}[url]`).not.toMatch(/\{[^}]+\}\[[^\]]+\]/);
+      expect(text, `${conv.id} has action: link`).not.toContain('[action:');
+      expect(text, `${conv.id} has action: link`).not.toContain('profile-action-link');
+      expect(text, `${conv.id} has html`).not.toMatch(/<(a|span|div) /);
+    }
+  });
+
+  it('cites the page of the report on every message from it', () => {
+    const text = md('alexandre-de-moraes');
+    const headers = text.split('\n').filter(l => /^\*\*.+\*\* · \d{2}:\d{2}/.test(l));
+    expect(headers.length).toBe(62);
+    for (const line of headers) expect(line).toMatch(/laudo p\. \d+/);
+  });
+
+  it('keeps every message', () => {
+    for (const conv of conversations) {
+      const headers = md(conv.id).split('\n').filter(l => /^\*\*.+\*\* · \d{2}:\d{2}/.test(l));
+      expect(headers.length, conv.id).toBe(conv.total_messages);
+    }
+  });
+});
+
+describe('everything at once', () => {
+  it('writes one Markdown with every conversation in it', () => {
+    const text = readFileSync(join(EXPORT_DIR, 'masterwhats.md'), 'utf-8');
+    for (const conv of conversations) {
+      expect(text, conv.id).toContain(`(#${conv.id})`);
+    }
+    expect(text).toContain('## Sobre o projeto');
+  });
+
+  it('writes one JSON with every conversation in it', () => {
+    const all = JSON.parse(readFileSync(join(EXPORT_DIR, 'masterwhats.json'), 'utf-8'));
+    expect(all.conversations.map(c => c.conversation.id).sort())
+      .toEqual(conversations.map(c => c.id).sort());
+  });
+
+  it('zips the pairs, with a README on top', async () => {
+    const path = join(EXPORT_DIR, 'masterwhats-export.zip');
+    expect(statSync(path).size).toBeGreaterThan(100_000);
+    const zip = await JSZip.loadAsync(readFileSync(path));
+    const names = Object.keys(zip.files);
+    expect(names).toContain('README.md');
+    for (const conv of conversations) {
+      expect(names, conv.id).toContain(`masterwhats-${conv.id}.md`);
+      expect(names, conv.id).toContain(`masterwhats-${conv.id}.json`);
+    }
+  });
+});

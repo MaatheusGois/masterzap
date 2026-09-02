@@ -127,9 +127,9 @@
   flex: 1;
 }
 
-/* Hidden on desktop, shown on mobile via media query */
+/* The list's own menu, as on WhatsApp Web. Home of "Exportar tudo". */
 .sidebar-menu-btn {
-  display: none;
+  display: flex;
   background: none;
   border: none;
   padding: 8px;

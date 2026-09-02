@@ -3,8 +3,9 @@ dist/
 .vite/
 *.local
 
-# Generated data (rebuild with npm run split-data)
+# Generated data (rebuild with npm run split-data / npm run export)
 public/data/
+public/export/
 
 # Reference files (personal images, design refs)
 ref/
