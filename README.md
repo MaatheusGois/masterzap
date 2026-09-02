@@ -2,7 +2,7 @@
 
 # MasterWhats
 
-> Visualizador interativo das 65.772 mensagens de WhatsApp vazadas entre Daniel Vorcaro (Banco Master) e Martha Graeff.
+> Visualizador interativo das 66.387 mensagens de WhatsApp extraídas dos celulares apreendidos de Daniel Vorcaro (Banco Master), em 24 conversas — de Martha Graeff a Alexandre de Moraes.
 
 **[Acesse ao vivo: www.masterwhats.com.br](https://www.masterwhats.com.br/)**
 
@@ -13,9 +13,12 @@ Feito por **[Rafael Bressan](https://linkedin.com/in/rafaelbressan)** com **[Cla
 
 ## Sobre o Projeto
 
-Em março de 2026, mensagens de WhatsApp extraídas do celular apreendido de Daniel Vorcaro — ex-dono do Banco Master, preso pela Polícia Federal — foram vazadas para a imprensa. As 65.772 mensagens trocadas com sua então namorada Martha Graeff revelaram conexões com autoridades dos Três Poderes, apelidos carinhosos que viralizaram nas redes e detalhes do maior escândalo bancário da história do Brasil.
+As mensagens vêm dos celulares apreendidos de Daniel Vorcaro — ex-dono do Banco Master, preso pela Polícia Federal em novembro de 2025 — e chegaram ao público em dois momentos, por caminhos diferentes:
 
-O MasterWhats transforma essas conversas em uma experiência de leitura no estilo WhatsApp Web: navegável, pesquisável e compartilhável.
+- **Março de 2026 — as conversas com Martha Graeff.** 65.772 mensagens trocadas com a então noiva vazaram para a imprensa e revelaram conexões com autoridades dos Três Poderes, apelidos que viralizaram nas redes e detalhes do maior escândalo bancário da história do Brasil.
+- **Setembro de 2026 — o relatório da PF sobre Alexandre de Moraes.** Caiu o sigilo da IPJ-A nº 3298613/2026, em que a Polícia Federal reconstrói, a partir do iPhone de Vorcaro, seus contatos com o ministro do STF e outras 22 pessoas. Não é um export de WhatsApp: as mensagens estavam em imagens dentro do laudo e foram transcritas uma a uma — veja [`data/ipj-3298613/README.md`](data/ipj-3298613/README.md).
+
+O MasterWhats transforma essas conversas em uma experiência de leitura no estilo WhatsApp Web: navegável, pesquisável e compartilhável. Cada contato tem um perfil que explica quem é a pessoa, o que o material revela e de onde vem a informação. Um novo vazamento entra como mais uma conversa.
 
 ### Origem do nome
 
@@ -37,7 +40,7 @@ O nome do repositório — **masterzap** — é uma referência ao projeto origi
 |-------|---------|
 | **Frontend** | Vanilla JS — zero frameworks |
 | **Build** | Vite |
-| **Dados** | 65.772 mensagens divididas em arquivos JSON por data |
+| **Dados** | 66.387 mensagens em 24 conversas, divididas em arquivos JSON por data |
 | **Carregamento** | Lazy loading com cache LRU por dia |
 | **Deploy** | Vercel com headers de segurança (HSTS, CSP, X-Frame-Options) |
 | **SEO** | Open Graph, Twitter Cards, JSON-LD, sitemap |
@@ -75,8 +78,8 @@ tests/e2e/            # Testes E2E (Playwright)
 
 ## Limitações Conhecidas
 
-- **Apenas mensagens de texto** — imagens, áudios, vídeos, stickers e documentos não foram incluídos no vazamento. As mensagens de mídia aparecem com placeholder indicando o tipo de conteúdo.
-- **Uma conversa** — atualmente apenas as mensagens entre Vorcaro e Martha Graeff estão disponíveis. A arquitetura já suporta múltiplas conversas (veja o roadmap).
+- **Apenas mensagens de texto** — imagens, áudios, vídeos, stickers e documentos não foram incluídos nos vazamentos. As mensagens de mídia aparecem com placeholder indicando o tipo de conteúdo.
+- **Conversas do relatório da PF são trechos** — exceto a de Alexandre de Moraes, as outras 22 aparecem no laudo apenas nos pontos que a PF citou; a conversa completa não consta do documento.
 
 Se novas mídias ou conversas se tornarem públicas, o projeto está preparado para incorporá-las.
 
@@ -98,8 +101,8 @@ A arquitetura já está ~80% preparada para escalar. O `DataStore` é agnóstico
 
 | Prioridade | Item | Status |
 |------------|------|--------|
-| Alta | Suporte a múltiplas conversas vazadas | Arquitetura pronta, ajustes no search e main.js |
-| Alta | Cache de índice de busca por conversa | Módulo de busca usa estado global — precisa refatorar |
+| Alta | Suporte a múltiplas conversas vazadas | Feito — 24 conversas de duas fontes |
+| Alta | Cache de índice de busca por conversa | Feito — cache por conversa |
 | Média | Busca cruzada entre conversas | Não iniciado |
 | Média | Suporte a mídias (imagens, áudio, vídeo) | Aguardando disponibilidade do conteúdo |
 | Média | Compartilhamento de intervalos de mensagens | Não iniciado |
@@ -113,10 +116,10 @@ As informações compiladas neste projeto são de domínio público, extraídas 
 
 ## English Summary
 
-**MasterWhats** is an interactive viewer for 65,772 leaked WhatsApp messages between Daniel Vorcaro (former owner of Banco Master, arrested by Brazil's Federal Police) and Martha Graeff. Built with vanilla JS and Vite, it features smart search with accent support, calendar navigation, direct message link sharing, investigative profiles, and a fully responsive WhatsApp Web-like interface optimized for mobile.
+**MasterWhats** is an interactive viewer for 66,387 WhatsApp messages recovered from the seized phones of Daniel Vorcaro (former owner of Banco Master, arrested by Brazil's Federal Police), across 24 conversations: the leaked exchanges with Martha Graeff and the Federal Police report on his contacts with Supreme Court Justice Alexandre de Moraes, unsealed in September 2026. Built with vanilla JS and Vite, it features smart search with accent support, calendar navigation, direct message link sharing, investigative profiles, and a fully responsive WhatsApp Web-like interface optimized for mobile.
 
 The repo name "masterzap" references the original [MasterZap](https://www.reddit.com/r/brasil/s/xQeqrG27p8) project by Lucas Matheus (built on Replit with Grok), which inspired this reimagined version.
 
-**Contributions welcome** — new leaked conversations, media support, sharing improvements, and bug fixes. See the Roadmap section above. Only text messages are currently available; images, audio, and video were not part of the leak.
+**Contributions welcome** — new leaked conversations, media support, sharing improvements, and bug fixes. See the Roadmap section above. Only text messages are currently available; images, audio, and video were not part of the leaks.
 
 **[Live: www.masterwhats.com.br](https://www.masterwhats.com.br/)** | **Author: [Rafael Bressan](https://linkedin.com/in/rafaelbressan)**
