@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+#
+# Vercel deploys on push, so this hook is the last gate before something goes
+# live. It runs the same checks as `npm run verify`.
+#
+# Enable it once per clone:
+#     git config core.hooksPath .githooks
+#
+# Skip it for a genuine emergency:
+#     git push --no-verify
+
+set -euo pipefail
+
+cd "$(git rev-parse --show-toplevel)"
+
+echo "▸ pre-push: verificando antes do deploy…"
+
+if ! npm run verify; then
+  echo
+  echo "✗ pre-push: verificação falhou — push cancelado."
+  echo "  Corrija, ou use 'git push --no-verify' se for emergência."
+  exit 1
+fi
+
+echo "✓ pre-push: tudo verde."

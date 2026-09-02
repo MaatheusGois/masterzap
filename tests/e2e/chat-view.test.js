@@ -3,8 +3,9 @@ import { test, expect } from '@playwright/test';
 test.describe('Chat View — Batch 4', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    // Click on the conversation to open chat view
-    await page.locator('.conversation-item').first().click();
+    // Open a known conversation rather than whichever one happens to be first —
+    // the list is ordered by recency.
+    await page.locator('.conversation-item[data-id="martha-graeff"]').click();
   });
 
   test('clicking a conversation opens the chat view', async ({ page }) => {

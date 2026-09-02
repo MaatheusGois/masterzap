@@ -63,7 +63,7 @@ test.describe('Chat Interactions', () => {
     await page.locator('.chat-header button[aria-label="Menu"]').click();
     const items = page.locator('.chat-dropdown-item');
     const count = await items.count();
-    expect(count).toBe(6);
+    expect(count).toBe(7);
   });
 
   test('right-clicking chat background opens dropdown', async ({ page }) => {

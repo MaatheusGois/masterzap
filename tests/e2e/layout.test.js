@@ -16,7 +16,7 @@ test.describe('Layout — Batch 2', () => {
 
   test('sidebar has header with title', async ({ page }) => {
     const title = page.locator('.sidebar-header-title');
-    await expect(title).toHaveText('MasterZap');
+    await expect(title).toHaveText('MasterWhats');
   });
 
   test('sidebar has search input', async ({ page }) => {
@@ -27,15 +27,17 @@ test.describe('Layout — Batch 2', () => {
 
   test('sidebar renders at least one conversation item', async ({ page }) => {
     const items = page.locator('.conversation-item');
-    await expect(items).toHaveCount(1); // Only martha-graeff for now
+    // Both leaks are loaded; assert there is a list rather than a fixed size,
+    // so adding a conversation does not break the test.
+    expect(await items.count()).toBeGreaterThan(1);
   });
 
   test('conversation item shows name and time', async ({ page }) => {
-    const name = page.locator('.conversation-item-name').first();
-    const time = page.locator('.conversation-item-time').first();
-
-    await expect(name).toHaveText('Martha Graeff');
-    await expect(time).not.toBeEmpty();
+    // The list is ordered by recency, so look the row up by id instead of
+    // assuming which conversation sits on top.
+    const item = page.locator('.conversation-item[data-id="martha-graeff"]');
+    await expect(item.locator('.conversation-item-name')).toHaveText('Martha Graeff');
+    await expect(item.locator('.conversation-item-time')).not.toBeEmpty();
   });
 
   test('empty state is visible when no conversation is selected (desktop)', async ({ page }) => {
@@ -47,7 +49,7 @@ test.describe('Layout — Batch 2', () => {
     await expect(emptyState).toBeVisible();
 
     const title = page.locator('.empty-state-title');
-    await expect(title).toHaveText('MasterZap Web');
+    await expect(title).toHaveText('MasterWhats');
   });
 
   test('clicking a conversation marks it active', async ({ page }) => {

@@ -79,7 +79,7 @@ test.describe('Hash Router — Batch 6', () => {
 
   test('clicking a conversation updates the URL hash', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.conversation-item').first().click();
+    await page.locator('.conversation-item[data-id="martha-graeff"]').click();
 
     // Hash should now contain the conversation id
     const url = page.url();
