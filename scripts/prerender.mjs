@@ -218,7 +218,11 @@ function llmsFull(built) {
     for (const p of section.paragraphs) out.push(linksToMarkdown(p.text), '');
   }
   out.push('## Fontes gerais', '', ...SOURCES.map(s => `- [${s.label}](${s.url})`), '');
-  out.push('## Export', '', `- Zip com tudo: ${SITE}/export/masterwhats-export.zip`, `- Tudo em Markdown: ${SITE}/export/masterwhats.md`, `- Tudo em JSON: ${SITE}/export/masterwhats.json`, '');
+  out.push('## Export', '',
+    'Comece pelo arquivo de uma conversa (7 a 40 KB, links acima); os consolidados são grandes e raramente necessários.',
+    `- Zip com tudo: ${SITE}/export/masterwhats-export.zip (3 MB)`,
+    `- Tudo em Markdown: ${SITE}/export/masterwhats.md (3 MB)`,
+    `- Tudo em JSON: ${SITE}/export/masterwhats.json (14 MB)`, '');
   return out.join('\n');
 }
 
@@ -232,6 +236,7 @@ function sitemap(built) {
     const headline = entry.id === 'alexandre-de-moraes' || entry.id === 'martha-graeff';
     rows.push(url(`${SITE}/chat/${entry.id}`, headline ? '0.9' : '0.8'));
   }
+  rows.push(url(`${SITE}/llms-full.txt`, '0.7'));
   rows.push(url(`${SITE}/export/masterwhats.md`, '0.6', 'monthly'));
   for (const { entry } of built) rows.push(url(`${SITE}/export/masterwhats-${entry.id}.md`, '0.5', 'monthly'));
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${rows.join('\n')}\n</urlset>\n`;

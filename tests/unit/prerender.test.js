@@ -123,6 +123,7 @@ describe('sitemap.xml', () => {
     const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
     expect(locs).toContain(`${SITE}/`);
+    expect(locs).toContain(`${SITE}/llms-full.txt`);
     for (const conv of conversations) {
       expect(locs, conv.id).toContain(`${SITE}/chat/${conv.id}`);
       expect(locs, conv.id).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
