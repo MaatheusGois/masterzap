@@ -2,16 +2,16 @@
  * Full-screen preview of a generated image, for when the platform refuses to
  * take it any other way.
  *
- * Not every browser implements Web Share Level 2 (sharing *files*, as opposed
- * to text and links), and some that expose navigator.clipboard still refuse to
- * write images to it.
+ * This is only reached after both better routes were tried and failed, so it
+ * offers exactly what the browser can actually do and nothing else. A button
+ * that turns out not to work is worse than no button: it suggests the thing is
+ * possible and then takes it away.
  *
- * The Compartilhar button here gets one more go at the share sheet, and it is
- * the attempt most likely to succeed: the click is a fresh user activation and
- * the image is already made, so nothing sits between the tap and the call —
- * unlike the first attempt, which had to redraw the DOM first. If the platform
- * still says no, the image is on the page and a long press reaches the
- * browser's own share and save menu, which knows how to get to WhatsApp.
+ * Where sharing files is genuinely unavailable (Firefox, most desktops), the
+ * download starts on its own — asking for a click, only to have the browser ask
+ * for confirmation on top of it, is two prompts for something already decided.
+ * The image stays on screen because a long press on it opens the browser's own
+ * menu, which copies, saves and shares.
  *
  * Security note: innerHTML is used only with static markup; the image arrives
  * as an object URL, assigned through the src property.
@@ -20,18 +20,18 @@
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
 /**
- * Show the image and the ways out of it.
+ * Show the image and whatever the platform can genuinely do with it.
  *
  * @param {HTMLElement} container
  * @param {Blob} blob
  * @param {object} options
- * @param {string} options.filename - used by the download action
- * @param {function} [options.onShare] - resolves 'shared'|'cancelled'|'unsupported'
- * @param {function} [options.onCopy] - returns a Promise<boolean>; hidden when absent
+ * @param {string} options.filename
+ * @param {function} [options.onShare] - pass only when the platform really can
+ *   share files; resolves 'shared' | 'cancelled' | 'unsupported'
  * @param {function} [options.onClose]
- * @returns {{ destroy: function }}
+ * @returns {{ element: HTMLElement, destroy: function }}
  */
-export function showImagePreview(container, blob, { filename, onShare, onCopy, onClose } = {}) {
+export function showImagePreview(container, blob, { filename, onShare, onClose } = {}) {
   const url = URL.createObjectURL(blob);
 
   const overlay = document.createElement('div');
@@ -46,32 +46,34 @@ export function showImagePreview(container, blob, { filename, onShare, onCopy, o
     </div>
     <div class="image-preview-body">
       <img class="image-preview-img" alt="Print da conversa" />
-      <p class="image-preview-hint"></p>
     </div>
-    <div class="image-preview-actions"></div>
+    <div class="image-preview-footer">
+      <p class="image-preview-hint"></p>
+      <div class="image-preview-actions"></div>
+    </div>
   `;
 
   overlay.querySelector('.image-preview-img').src = url;
 
+  const hint = overlay.querySelector('.image-preview-hint');
   const actions = overlay.querySelector('.image-preview-actions');
 
-  function addAction(label, handler, variant = '') {
-    const btn = document.createElement('button');
-    btn.className = `image-preview-action ${variant}`.trim();
-    btn.textContent = label;
-    btn.addEventListener('click', handler);
-    actions.appendChild(btn);
-    return btn;
+  function download() {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
   }
 
-  const hint = overlay.querySelector('.image-preview-hint');
-  hint.textContent = onShare
-    ? 'Ou toque e segure na imagem para usar o menu do navegador.'
-    : 'Toque e segure na imagem para compartilhar ou salvar.';
-
-  // The second attempt at the share sheet, from a fresh click.
   if (onShare) {
-    const shareBtn = addAction('Compartilhar', async () => {
+    hint.textContent = 'Ou toque e segure na imagem para usar o menu do navegador.';
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'image-preview-action primary';
+    shareBtn.textContent = 'Compartilhar';
+    shareBtn.addEventListener('click', async () => {
       shareBtn.disabled = true;
       const result = await onShare();
       shareBtn.disabled = false;
@@ -79,35 +81,18 @@ export function showImagePreview(container, blob, { filename, onShare, onCopy, o
       if (result === 'shared') { close(); return; }
       if (result === 'cancelled') return;
 
-      // The platform refused. Say so once and leave the long press as the way
-      // out, rather than offering a button that does nothing.
+      // The platform said no after all. Drop the button rather than leave one
+      // that does nothing, and fall back to what does work.
       shareBtn.remove();
-      hint.textContent = 'Seu navegador não compartilha imagens. '
-        + 'Toque e segure na imagem para usar o menu do sistema.';
-    }, 'primary');
-  }
-
-  // Offered only where the clipboard actually took the image before.
-  if (onCopy) {
-    const copyBtn = addAction('Copiar', async () => {
-      copyBtn.disabled = true;
-      const ok = await onCopy();
-      copyBtn.textContent = ok ? 'Copiado' : 'Não foi possível copiar';
-      setTimeout(() => {
-        copyBtn.textContent = 'Copiar';
-        copyBtn.disabled = false;
-      }, 2000);
+      hint.textContent = 'Toque e segure na imagem para copiar, salvar ou compartilhar.';
+      download();
     });
+    actions.appendChild(shareBtn);
+  } else {
+    // Nothing to offer but the file itself, so it is already on its way.
+    hint.textContent = 'Imagem salva. Toque e segure nela para copiar ou compartilhar.';
+    download();
   }
-
-  addAction('Baixar', () => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  }, onShare ? '' : 'primary');
 
   function destroy() {
     document.removeEventListener('keydown', onKeydown, true);
@@ -126,7 +111,7 @@ export function showImagePreview(container, blob, { filename, onShare, onCopy, o
 
   overlay.querySelector('.image-preview-close').addEventListener('click', close);
   // Tapping the backdrop closes; tapping the image must not, or a long press
-  // that starts with a tap would dismiss the thing being shared.
+  // that starts as a tap would dismiss the thing being shared.
   overlay.addEventListener('click', (e) => {
     if (e.target === overlay) close();
   });

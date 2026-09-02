@@ -1,14 +1,14 @@
 import { test, expect } from '@playwright/test';
 
-// Some browsers share text but refuse files (Web Share Level 2), and some
-// expose navigator.clipboard yet reject images. On those the print has nowhere
-// to go, so it goes on screen instead — where the platform's own long-press
-// menu can share it. This pins that path down by making the page report the
-// same capabilities.
+// The preview is reached only after sharing and copying have both failed, so it
+// must offer exactly what the browser can still do. Two profiles matter:
+//
+//   Firefox — navigator.share exists but refuses files, and the clipboard
+//             refuses images. Nothing to offer, so the download just happens.
+//   Chrome  — shares files. The button is worth showing, and this path is only
+//             reached when the first attempt failed for some other reason.
 
-const clipShimRefusesImages = () => {
-  // The profile Rafael's phone reports: share exists and takes text, canShare
-  // says no to files, and the clipboard refuses images.
+const FIREFOX_PROFILE = () => {
   navigator.share = () => Promise.reject(
     Object.assign(new Error('refused'), { name: 'NotAllowedError' })
   );
@@ -21,134 +21,171 @@ const clipShimRefusesImages = () => {
       ),
     },
   });
+  window.__downloads = [];
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.download) window.__downloads.push(this.download);
+  };
 };
 
-async function openPrint(page) {
+const SHARES_FILES = (shouldSucceed) => {
+  window.__shared = null;
+  window.__downloads = [];
+  navigator.canShare = () => true;
+  navigator.share = (data) => {
+    if (!shouldSucceed) {
+      return Promise.reject(Object.assign(new Error('no'), { name: 'NotAllowedError' }));
+    }
+    window.__shared = (data.files || []).map(f => ({ name: f.name, type: f.type }));
+    return Promise.resolve();
+  };
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { write: () => Promise.reject(new Error('nope')) },
+  });
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.download) window.__downloads.push(this.download);
+  };
+};
+
+/** Open a chat, install a capability profile, and ask for the print. */
+async function openPrint(page, profile, arg) {
   await page.goto('/#/chat/ciro-soares');
   await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
-  await page.evaluate(clipShimRefusesImages);
+  await page.evaluate(profile, arg);
   await page.locator('.chat-header button[aria-label="Menu"]').click();
   await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
 }
 
-test.describe('Image preview fallback', () => {
-  test('opens when neither sharing nor copying is possible', async ({ page }) => {
-    await openPrint(page);
+/** Ask for the print again, the way the "toque novamente" toast invites. */
+async function askAgain(page) {
+  await page.locator('.chat-header button[aria-label="Menu"]').click();
+  await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+}
 
+test.describe('Preview when the browser cannot share files', () => {
+  test.beforeEach(async ({ page }) => {
+    await openPrint(page, FIREFOX_PROFILE);
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
-    // The wording differs depending on whether a share button is offered; both
-    // point at the long press, which is the guaranteed way out.
-    await expect(page.locator('.image-preview-hint'))
-      .toContainText('toque e segure', { ignoreCase: true });
   });
 
-  test('shows the captured image, loaded', async ({ page }) => {
-    await openPrint(page);
+  // Asking for a click, only to have the browser ask for confirmation on top of
+  // it, is two prompts for something already decided.
+  test('downloads without being asked twice', async ({ page }) => {
+    await expect.poll(() => page.evaluate(() => window.__downloads)).toHaveLength(1);
+    expect((await page.evaluate(() => window.__downloads))[0]).toContain('.png');
+  });
 
+  // A button that does not work suggests the thing is possible and then takes
+  // it away.
+  test('offers no buttons it cannot honour', async ({ page }) => {
+    await expect(page.locator('.image-preview-action')).toHaveCount(0);
+  });
+
+  test('points at the long press, which does work', async ({ page }) => {
+    await expect(page.locator('.image-preview-hint')).toContainText('Toque e segure');
+  });
+
+  test('shows the image, loaded', async ({ page }) => {
     const img = page.locator('.image-preview-img');
-    await expect(img).toBeVisible({ timeout: 20000 });
     expect(await img.evaluate(el => el.naturalWidth)).toBeGreaterThan(0);
   });
 
-  test('offers sharing, copying and downloading', async ({ page }) => {
-    await openPrint(page);
-    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+  // The hint used to sit on top of the picture.
+  test('leaves the image clear of the text below it', async ({ page }) => {
+    const img = await page.locator('.image-preview-img').boundingBox();
+    const hint = await page.locator('.image-preview-hint').boundingBox();
 
-    const labels = await page.locator('.image-preview-action').allTextContents();
-    expect(labels).toEqual(['Compartilhar', 'Copiar', 'Baixar']);
+    expect(img.y + img.height).toBeLessThanOrEqual(hint.y + 1);
   });
+});
 
-  // The click is a fresh activation and the image is already made, so this is
-  // the platform's best shot at the share sheet.
-  test('the share button reaches the share sheet with the image', async ({ page }) => {
-    await page.goto('/#/chat/ciro-soares');
-    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
-    await page.evaluate(() => {
-      window.__shared = null;
-      navigator.canShare = () => false;              // refuses the probe
-      navigator.share = (data) => {                  // but takes the real call
-        window.__shared = (data.files || []).map(f => ({ name: f.name, type: f.type }));
-        return Promise.resolve();
-      };
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: { write: () => Promise.reject(Object.assign(new Error('no'), { name: 'NotAllowedError' })) },
-      });
-    });
-    await page.locator('.chat-header button[aria-label="Menu"]').click();
-    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
-    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
-
-    await page.locator('.image-preview-action', { hasText: 'Compartilhar' }).click();
+test.describe('Preview when the browser does share files', () => {
+  // A platform that shares files never gets here on the happy path — the first
+  // attempt succeeds. It only shows up when that attempt was refused, and the
+  // second one is where the ambiguity of NotAllowedError gets settled.
+  test('shares straight away, without any preview', async ({ page }) => {
+    await openPrint(page, SHARES_FILES, true);
 
     await expect.poll(() => page.evaluate(() => window.__shared)).not.toBeNull();
-    const shared = await page.evaluate(() => window.__shared);
-    expect(shared[0].type).toBe('image/png');
-    // Sharing succeeded, so the overlay has done its job and gets out of the way.
     await expect(page.locator('.image-preview')).toHaveCount(0);
   });
 
-  test('says so and keeps the long press when the platform refuses', async ({ page }) => {
-    await page.goto('/#/chat/ciro-soares');
-    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+  test('asks for one more tap, then gives up and previews', async ({ page }) => {
+    await openPrint(page, SHARES_FILES, false);
+
+    await expect(page.locator('.search-toast')).toContainText('Toque novamente');
+    await expect(page.locator('.image-preview')).toHaveCount(0);
+
+    await askAgain(page);
+
+    // Second refusal settles it: the platform will not take images.
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+  });
+
+  test('offers the share button and nothing else', async ({ page }) => {
+    await openPrint(page, SHARES_FILES, false);
+    await expect(page.locator('.search-toast')).toContainText('Toque novamente');
+    await askAgain(page);
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    const labels = await page.locator('.image-preview-action').allTextContents();
+    expect(labels).toEqual(['Compartilhar']);
+  });
+
+  test('hands the image to the share sheet and gets out of the way', async ({ page }) => {
+    await openPrint(page, SHARES_FILES, false);
+    await expect(page.locator('.search-toast')).toContainText('Toque novamente');
+    await askAgain(page);
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    // The button retries for real; let it through this time.
     await page.evaluate(() => {
-      navigator.canShare = () => false;
-      navigator.share = () => Promise.reject(
-        Object.assign(new Error('no'), { name: 'NotAllowedError' })
-      );
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: { write: () => Promise.reject(Object.assign(new Error('no'), { name: 'NotAllowedError' })) },
-      });
+      navigator.share = (data) => {
+        window.__shared = (data.files || []).map(f => ({ name: f.name, type: f.type }));
+        return Promise.resolve();
+      };
     });
-    await page.locator('.chat-header button[aria-label="Menu"]').click();
-    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+    await page.locator('.image-preview-action', { hasText: 'Compartilhar' }).click();
+
+    await expect.poll(() => page.evaluate(() => window.__shared)).not.toBeNull();
+    expect((await page.evaluate(() => window.__shared))[0].type).toBe('image/png');
+    await expect(page.locator('.image-preview')).toHaveCount(0);
+  });
+
+  test('drops the button and downloads if the platform refuses after all', async ({ page }) => {
+    await openPrint(page, SHARES_FILES, false);
+    await expect(page.locator('.search-toast')).toContainText('Toque novamente');
+    await askAgain(page);
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
 
     await page.locator('.image-preview-action', { hasText: 'Compartilhar' }).click();
 
-    await expect(page.locator('.image-preview-hint')).toContainText('não compartilha imagens');
-    await expect(page.locator('.image-preview-action', { hasText: 'Compartilhar' })).toHaveCount(0);
-    await expect(page.locator('.image-preview-img')).toBeVisible();
+    await expect(page.locator('.image-preview-action')).toHaveCount(0);
+    await expect(page.locator('.image-preview-hint')).toContainText('Toque e segure');
+    await expect.poll(() => page.evaluate(() => window.__downloads)).toHaveLength(1);
   });
+});
 
-  test('says so when the clipboard refuses again', async ({ page }) => {
-    await openPrint(page);
+test.describe('Dismissing the preview', () => {
+  test.beforeEach(async ({ page }) => {
+    await openPrint(page, FIREFOX_PROFILE);
     await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
-
-    const copy = page.locator('.image-preview-action', { hasText: 'Copiar' });
-    await copy.click();
-
-    await expect(page.locator('.image-preview-action', { hasText: 'Não foi possível copiar' }))
-      .toBeVisible();
   });
 
   test('closes on the X', async ({ page }) => {
-    await openPrint(page);
-    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
-
     await page.locator('.image-preview-close').click();
-
     await expect(page.locator('.image-preview')).toHaveCount(0);
   });
 
   test('closes on Escape', async ({ page }) => {
-    await openPrint(page);
-    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
-
     await page.keyboard.press('Escape');
-
     await expect(page.locator('.image-preview')).toHaveCount(0);
   });
 
   // A long press starts as a touch on the image; dismissing on that would make
   // the one gesture that works impossible.
   test('tapping the image does not close it', async ({ page }) => {
-    await openPrint(page);
-    await expect(page.locator('.image-preview-img')).toBeVisible({ timeout: 20000 });
-
     await page.locator('.image-preview-img').click();
-
     await expect(page.locator('.image-preview')).toBeVisible();
   });
 });

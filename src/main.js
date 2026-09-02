@@ -18,7 +18,7 @@ import { loadReadConversations, markConversationRead } from './lib/read-state.js
 import { showToast } from './components/Toast.js';
 import {
   shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot,
-  copyImageToClipboard, shareImageFile,
+  shareImageFile, canShareFiles,
 } from './lib/screenshot.js';
 import { showImagePreview } from './components/ImagePreview.js';
 
@@ -283,12 +283,12 @@ async function init() {
       if (result.outcome === 'preview') {
         activeImagePreview = showImagePreview(mainArea, result.blob, {
           filename: result.filename,
-          // One more go at the share sheet, this time from a plain click with
-          // the image already made — the best shot the platform will get.
-          onShare: navigator.share
+          // Offered only where the platform genuinely shares files. Firefox
+          // exposes navigator.share but will not take an image, and a button
+          // that fails is worse than no button.
+          onShare: canShareFiles()
             ? () => shareImageFile(result.blob, result.filename)
             : null,
-          onCopy: () => copyImageToClipboard(result.blob),
           onClose: () => { activeImagePreview = null; },
         });
       }

@@ -395,3 +395,40 @@ describe('canShareFiles() probe', () => {
     expect(files[0].type).toBe('image/png');
   });
 });
+
+describe('the retry is offered once, not forever', () => {
+  beforeEach(() => {
+    clearPreparedScreenshot();
+    clearPendingScreenshot();
+    html2canvas.mockClear();
+    globalThis.ClipboardItem = class { constructor(data) { this.data = data; } };
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    navigator.canShare = vi.fn(() => true);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  // NotAllowedError covers both "your tap expired" and "this platform will not
+  // share images". One more tap tells them apart; asking again after that would
+  // just loop a browser of the second kind.
+  it('gives up after the second refusal instead of asking again', async () => {
+    navigator.share = vi.fn(() => Promise.reject(
+      Object.assign(new Error('no'), { name: 'NotAllowedError' })
+    ));
+
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('retry');
+
+    const second = await shareChatScreenshot(element(), 'Ciro');
+    expect(second.outcome).toBe('preview');
+    expect(second.blob).toBeInstanceOf(Blob);
+  });
+
+  it('still shares when the second tap is the one that works', async () => {
+    navigator.share = vi.fn(() => Promise.reject(
+      Object.assign(new Error('no'), { name: 'NotAllowedError' })
+    ));
+    await shareChatScreenshot(element(), 'Ciro');
+
+    navigator.share = vi.fn(() => Promise.resolve());
+    expect((await shareChatScreenshot(element(), 'Ciro')).outcome).toBe('shared');
+  });
+});

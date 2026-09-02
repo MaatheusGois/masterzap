@@ -256,14 +256,13 @@ export async function shareChatScreenshot(element, conversationName) {
   if (canShareFiles()) {
     // Reuse the image from a tap that lost its activation, so this one is
     // instant and the share sheet still opens.
+    // Prefer an image already made: from a previous tap that ran out of
+    // activation, or from the capture started when the menu opened. Awaiting a
+    // settled promise costs only a microtask, which the activation survives.
+    const held = takePending(filename);
     let blob;
     try {
-      // Prefer an image already made: from the retry hold, or from the capture
-      // started when the menu opened. Awaiting a settled promise costs only a
-      // microtask, which the activation survives.
-      blob = takePending(filename)
-        || await takePrepared(filename)
-        || await captureElement(element);
+      blob = held || await takePrepared(filename) || await captureElement(element);
     } catch (err) {
       return { outcome: 'failed', reason: err?.message, diag };
     }
@@ -274,9 +273,11 @@ export async function shareChatScreenshot(element, conversationName) {
     } catch (err) {
       if (err?.name === 'AbortError') return { outcome: 'cancelled', diag };
 
-      if (isSpentActivation(err)) {
-        // The capture outlived the tap. Hold the image so the next one shares
-        // immediately instead of falling back to something the user did not ask for.
+      // NotAllowedError is ambiguous: it covers both "your tap expired" and
+      // "this platform will not share images". Ask for one more tap, which
+      // settles it — but only once, or a browser of the second kind would keep
+      // being asked forever.
+      if (isSpentActivation(err) && !held) {
         pending = { filename, blob, at: Date.now() };
         return { outcome: 'retry', reason: err?.name, diag };
       }
