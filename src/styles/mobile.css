@@ -103,11 +103,6 @@
     width: 100%;
   }
 
-  /* Show sidebar menu button on mobile */
-  .sidebar-menu-btn {
-    display: flex;
-  }
-
   /* Show bottom nav on mobile */
   .sidebar-bottom-nav {
     display: flex;

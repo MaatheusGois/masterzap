@@ -52,6 +52,7 @@ git clone https://github.com/rafaelbressan/masterzap.git
 cd masterzap
 npm install
 npm run split-data    # Gera os arquivos JSON por data em public/data/
+npm run export        # Gera o export limpo (Markdown, JSON, zip) em public/export/
 npm run dev           # Inicia o servidor de desenvolvimento
 ```
 
@@ -69,12 +70,23 @@ npm run test:e2e      # Testes E2E (Playwright)
 ```
 src/                  # Código-fonte (styles, lib, components)
 public/data/          # Dados por data (gitignored, gerado por split-data)
+public/export/        # Export limpo por conversa e completo (gitignored, gerado por export)
 public/assets/        # Assets estáticos (favicon, background, SVGs)
 data/                 # Dados originais (messages.json, index.json)
 scripts/              # Scripts de build (split_data.py)
 tests/unit/           # Testes unitários (Vitest)
 tests/e2e/            # Testes E2E (Playwright)
 ```
+
+## Exportar os dados
+
+Tudo que o site mostra sai limpo, sem precisar do site:
+
+- **Por conversa** — no menu `⋮` de cada chat, "Exportar (.md)" ou "Exportar (.json)".
+- **Tudo** — no menu `⋮` da lista de conversas, "Exportar tudo (.zip)": os 24 pares `.md`/`.json` mais um `README.md`.
+- **Por URL** — `/export/masterwhats-<conversa>.md`, `/export/masterwhats-<conversa>.json`, `/export/masterwhats.md`, `/export/masterwhats.json`, `/export/masterwhats-export.zip`.
+
+O `.md` se explica sozinho: proveniência (fonte, documento e seu sha256, período, fuso), quem é o contato com fontes, e as mensagens dia a dia — as do relatório da PF citam `laudo p. N, fig. M`. O `.json` traz os mesmos metadados e perfil, mais todas as mensagens com os campos originais e `timestamp` com fuso (`-03:00`). Gerado no build por `scripts/export.mjs`, que importa os perfis do próprio app para não descolar.
 
 ## Limitações Conhecidas
 

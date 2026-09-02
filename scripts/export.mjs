@@ -1,0 +1,339 @@
+/**
+ * Write the clean export: one Markdown and one JSON per conversation, one of
+ * each with everything, and a zip of the lot — into public/export/.
+ *
+ * Runs after split_data.py, because the list of conversations and their ids
+ * come from public/data/conversations.json rather than being derived again
+ * here. Messages come from the sources in data/, not from the day chunks, so a
+ * file holds a whole conversation at once.
+ *
+ * Node rather than Python because the contact profiles live in
+ * src/lib/profile-content.js. Importing them keeps the export and the site
+ * saying the same thing — a profile edited in one place is edited in both.
+ */
+
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import JSZip from 'jszip';
+
+import { getContactProfile, VORCARO_PROFILE, SOURCES } from '../src/lib/profile-content.js';
+import { SETTINGS_CONTENT } from '../src/lib/settings-content.js';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const DATA_DIR = join(ROOT, 'data');
+const PUBLIC_DATA = join(ROOT, 'public/data');
+const OUT = join(ROOT, 'public/export');
+
+const SITE = 'https://www.masterwhats.com.br';
+const REPO = 'https://github.com/rafaelbressan/masterzap';
+const FORMAT_VERSION = 1;
+
+// The phones were seized in Brazil and every timestamp in the sources is local
+// wall-clock time. Brazil has had no daylight saving since 2019, so from the
+// first message (December 2023) on the offset is a constant.
+const TIMEZONE = 'America/Sao_Paulo';
+const UTC_OFFSET = '-03:00';
+
+const REPORT_PDF = 'data/source/IPJ-A-3298613-2026.pdf';
+
+const generatedAt = new Date().toISOString();
+
+// ── sources ────────────────────────────────────────────────────────────────
+
+const entries = JSON.parse(readFileSync(join(PUBLIC_DATA, 'conversations.json'), 'utf-8')).conversations;
+
+/** The Martha export is the one source without a `source` field. */
+function loadMessages(entry) {
+  const fromReport = join(DATA_DIR, 'conversations', `${entry.id}.json`);
+  if (existsSync(fromReport)) {
+    return JSON.parse(readFileSync(fromReport, 'utf-8')).messages;
+  }
+  return JSON.parse(readFileSync(join(DATA_DIR, 'messages.json'), 'utf-8')).messages;
+}
+
+function sha256(path) {
+  if (!existsSync(path)) return null;
+  return createHash('sha256').update(readFileSync(path)).digest('hex');
+}
+
+const reportSha = sha256(join(ROOT, REPORT_PDF));
+
+/** Where a conversation's text came from, in the terms the reader will need. */
+function sourceOf(entry) {
+  if (entry.source?.startsWith('IPJ-A')) {
+    return {
+      kind: 'police-report',
+      label: entry.source,
+      document: REPORT_PDF,
+      document_sha256: reportSha,
+      made_public: '2026-09-01',
+      how: 'Transcrição manual das imagens do laudo; cada mensagem cita a página e a figura de origem.',
+    };
+  }
+  return {
+    kind: 'leak',
+    label: 'Vazamento das conversas com Martha Graeff, março de 2026',
+    document: null,
+    document_sha256: null,
+    made_public: '2026-03',
+    how: 'Export de WhatsApp extraído do celular apreendido, vazado para a imprensa.',
+  };
+}
+
+// ── text helpers ───────────────────────────────────────────────────────────
+
+const urlsIn = (text) => [...text.matchAll(/\{[^}]+\}\[(https?:\/\/[^\]]+)\]/g)].map(m => m[1]);
+
+/** The site's {text}[url] links as Markdown; action: links become plain text. */
+const linksToMarkdown = (text) => text.replace(/\{([^}]+)\}\[([^\]]+)\]/g,
+  (_, t, url) => (url.startsWith('action:') ? t : `[${t}](${url})`));
+
+const dateFmt = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+const longDate = (iso) => dateFmt.format(new Date(`${iso}T12:00:00`));
+
+const contactOf = (entry) => entry.participants.find(p => p !== 'DV') || entry.participants[0];
+
+const phonePretty = (p) => (p && /^55\d{10,11}$/.test(p)
+  ? `+55 ${p.slice(2, 4)} ${p.slice(4, -4)}-${p.slice(-4)}`
+  : p || null);
+
+const MEDIA = {
+  image: 'Foto', video: 'Vídeo', audio: 'Áudio', sticker: 'Sticker',
+  document: 'Documento', call: 'Chamada', deleted: 'Mensagem apagada', system: 'Sistema',
+};
+
+/** One message as it reads without the app. */
+function messageBody(msg) {
+  const text = (msg.content || '').trim();
+  switch (msg.type) {
+    case 'text':
+      return text;
+    case 'document':
+      return `_[Documento${msg.attachment ? `: ${msg.attachment}` : ''}]_${text ? `\n${text}` : ''}`;
+    case 'image':
+      // A view-once image whose content the forensics could not recover keeps
+      // the placeholder text the source gave it.
+      if (text.startsWith('[')) return `_${text}_`;
+      return `_[Foto]_${text ? `\n${text}` : ''}`;
+    case 'video': case 'audio': case 'sticker':
+      return `_[${MEDIA[msg.type]}]_${text ? `\n${text}` : ''}`;
+    case 'call':
+      return `_[${text || 'Chamada'}]_`;
+    case 'deleted':
+      return `_[${text || 'Mensagem apagada'}]_`;
+    case 'system':
+      return `_(${text})_`;
+    default:
+      return text;
+  }
+}
+
+/** A leading #, > or - would turn a line of chat into markup. */
+const escapeLine = (line) => line.replace(/^([#>\-+*]|\d+\.)(?=\s|$)/, '\\$1');
+
+// ── profile ────────────────────────────────────────────────────────────────
+
+function profileMarkdown(title, profile) {
+  if (!profile) return { text: '', urls: [] };
+  const urls = [];
+  const out = [`## ${title}`, ''];
+  for (const section of profile.sections || []) {
+    const who = title.replace(/^Quem é /, '');
+    if (section.title && section.title !== who && section.title !== `Sobre ${who}`) {
+      out.push(`### ${section.title}`, '');
+    }
+    for (const p of section.paragraphs || []) {
+      urls.push(...urlsIn(p.text));
+      out.push(linksToMarkdown(p.text), '');
+    }
+  }
+  return { text: out.join('\n'), urls };
+}
+
+function profileJson(profile) {
+  if (!profile) return null;
+  const urls = [];
+  const sections = (profile.sections || []).map(s => ({
+    title: s.title || null,
+    paragraphs: (s.paragraphs || []).map(p => {
+      urls.push(...urlsIn(p.text));
+      return linksToMarkdown(p.text);
+    }),
+  }));
+  return { about: profile.about || null, sections, sources: [...new Set(urls)] };
+}
+
+// ── one conversation ───────────────────────────────────────────────────────
+
+function conversationMarkdown(entry, messages, { standalone = true } = {}) {
+  const contact = contactOf(entry);
+  const source = sourceOf(entry);
+  const profile = getContactProfile(entry.id);
+  const heading = standalone ? '#' : '##';
+  const sub = standalone ? '##' : '###';
+  const out = [];
+
+  out.push(`${heading} Daniel Vorcaro ↔ ${contact}`, '');
+  if (standalone) {
+    out.push(`> Exportado de [MasterWhats](${SITE}/#/chat/${entry.id}) em ${generatedAt.slice(0, 10)}. Código e dados: ${REPO}.`, '');
+  }
+
+  out.push(`${sub} Proveniência`, '', '| | |', '|---|---|');
+  out.push(`| Fonte | ${source.label} |`);
+  if (source.document) out.push(`| Documento | \`${source.document}\` (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
+  out.push(`| Como chegou ao público | ${source.how} |`);
+  out.push(`| Período | ${entry.date_range.start} a ${entry.date_range.end} |`);
+  out.push(`| Mensagens | ${entry.total_messages} |`);
+  if (entry.saved_as) out.push(`| Contato salvo como | ${entry.saved_as} |`);
+  if (entry.phone) out.push(`| Telefone | ${phonePretty(entry.phone)} |`);
+  out.push(`| Fuso dos horários | ${TIMEZONE} (UTC${UTC_OFFSET}) |`);
+  if (entry.note) out.push(`| Observação | ${entry.note} |`);
+  out.push('');
+
+  // The saved contact name is how the phone knew the person ("Alexandre de
+  // Moraes BRASILIA"); the profile knows who they are.
+  const who = profile?.name || profile?.sections?.[0]?.title?.replace(/^Sobre /, '') || contact;
+  const { text: profileText, urls } = profileMarkdown(`Quem é ${who}`, profile);
+  if (profileText) out.push(profileText.replace(/^## /, `${sub} `).replace(/\n### /g, `\n${standalone ? '###' : '####'} `));
+
+  out.push(`${sub} Conversa`, '');
+  let day = null;
+  for (const msg of messages) {
+    if (msg.date !== day) {
+      day = msg.date;
+      out.push(`${standalone ? '###' : '####'} ${longDate(day)}`, '');
+    }
+    const tags = [msg.time.slice(0, 5)];
+    if (msg.is_edited) tags.push('editada');
+    if (msg.view_once) tags.push('visualização única');
+    if (msg.source_page) tags.push(`laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''}`);
+    out.push(`**${msg.sender}** · ${tags.join(' · ')}`);
+    const body = messageBody(msg);
+    if (body) out.push(...body.split('\n').map(escapeLine));
+    out.push('');
+  }
+
+  const sources = [...new Set(urls)];
+  if (sources.length) {
+    out.push(`${sub} Fontes`, '', ...sources.map(u => `- ${u}`), '');
+  }
+  return out.join('\n');
+}
+
+function conversationJson(entry, messages) {
+  const source = sourceOf(entry);
+  return {
+    export: {
+      generated_at: generatedAt, format_version: FORMAT_VERSION,
+      site: SITE, url: `${SITE}/#/chat/${entry.id}`, repository: REPO,
+      timezone: TIMEZONE, utc_offset: UTC_OFFSET,
+    },
+    conversation: {
+      id: entry.id,
+      participants: entry.participants,
+      contact: contactOf(entry),
+      saved_as: entry.saved_as || null,
+      phone: entry.phone || null,
+      date_range: entry.date_range,
+      total_messages: entry.total_messages,
+      media_counts: entry.media_counts,
+      source: source.label,
+      source_detail: source,
+      note: entry.note || null,
+    },
+    profile: profileJson(getContactProfile(entry.id)),
+    messages: messages.map(m => ({ ...m, timestamp: `${m.timestamp}${UTC_OFFSET}` })),
+  };
+}
+
+// ── everything ─────────────────────────────────────────────────────────────
+
+function aboutMarkdown() {
+  const about = SETTINGS_CONTENT.sections.find(s => s.title === 'Sobre o Projeto');
+  const out = ['## Sobre o projeto', ''];
+  for (const p of about?.paragraphs || []) out.push(linksToMarkdown(p.text), '');
+  return out.join('\n');
+}
+
+function readme(conversations) {
+  const total = conversations.reduce((n, c) => n + c.total_messages, 0);
+  return [
+    '# MasterWhats — export completo', '',
+    `Gerado em ${generatedAt.slice(0, 10)} a partir de ${SITE}. ${conversations.length} conversas, ${total} mensagens.`, '',
+    '## O que tem aqui', '',
+    '| Arquivo | Conteúdo |', '|---|---|',
+    '| `masterwhats-<conversa>.md` | Uma conversa legível: proveniência, quem é o contato (com fontes) e as mensagens, dia a dia |',
+    '| `masterwhats-<conversa>.json` | A mesma conversa como dados: metadados, perfil e todas as mensagens com os campos originais |',
+    '| `masterwhats.md` / `masterwhats.json` | Tudo num arquivo só |', '',
+    '## Como ler', '',
+    `- Horários em ${TIMEZONE} (UTC${UTC_OFFSET}); no JSON, cada \`timestamp\` já carrega o fuso.`,
+    '- Mensagens do relatório da PF trazem `laudo p. N, fig. M` — página e figura do PDF de origem, para conferência.',
+    '- `_[Foto]_`, `_[Vídeo]_`, `_[Áudio]_`, `_[Documento]_`: a mídia não faz parte do material público; só o tipo é conhecido.',
+    '- `[imagem de visualização única — conteúdo não recuperado]`: enviada em visualização única e não recuperada pela perícia.', '',
+    aboutMarkdown(),
+    '## Fontes gerais', '', ...SOURCES.map(s => `- [${s.label}](${s.url})`), '',
+    `## Aviso`, '',
+    'As informações aqui compiladas são de domínio público, extraídas de reportagens jornalísticas e de documentos cujo sigilo foi levantado judicialmente. Este projeto não tem vinculação com nenhuma das partes envolvidas.', '',
+  ].join('\n');
+}
+
+function allMarkdown(built) {
+  const total = built.reduce((n, b) => n + b.entry.total_messages, 0);
+  const out = [
+    '# MasterWhats — todas as conversas', '',
+    `> Exportado de [MasterWhats](${SITE}) em ${generatedAt.slice(0, 10)}. ${built.length} conversas, ${total} mensagens. Código e dados: ${REPO}.`, '',
+    aboutMarkdown(),
+    profileMarkdown('Quem é Daniel Vorcaro', VORCARO_PROFILE).text,
+    '## Conversas', '',
+    ...built.map(b => `- [${contactOf(b.entry)}](#${b.entry.id}) — ${b.entry.total_messages} mensagens, ${b.entry.date_range.start} a ${b.entry.date_range.end}`),
+    '', '---', '',
+  ];
+  for (const b of built) {
+    out.push(`<a id="${b.entry.id}"></a>`, '');
+    out.push(conversationMarkdown(b.entry, b.messages, { standalone: false }), '---', '');
+  }
+  return out.join('\n');
+}
+
+// ── run ────────────────────────────────────────────────────────────────────
+
+mkdirSync(OUT, { recursive: true });
+for (const stale of readdirSync(OUT)) {
+  if (/^masterwhats/.test(stale)) writeFileSync(join(OUT, stale), '');
+}
+
+const zip = new JSZip();
+const built = [];
+
+for (const entry of entries) {
+  const messages = loadMessages(entry);
+  if (messages.length !== entry.total_messages) {
+    console.error(`${entry.id}: ${messages.length} messages in source, ${entry.total_messages} in conversations.json`);
+    process.exit(1);
+  }
+  const mdText = conversationMarkdown(entry, messages);
+  const jsonText = JSON.stringify(conversationJson(entry, messages), null, 1);
+  writeFileSync(join(OUT, `masterwhats-${entry.id}.md`), mdText);
+  writeFileSync(join(OUT, `masterwhats-${entry.id}.json`), jsonText);
+  zip.file(`masterwhats-${entry.id}.md`, mdText);
+  zip.file(`masterwhats-${entry.id}.json`, jsonText);
+  built.push({ entry, messages });
+  console.log(`${entry.id}: ${messages.length} messages, ${(mdText.length / 1024).toFixed(0)} kB md`);
+}
+
+const allMd = allMarkdown(built);
+const allJson = JSON.stringify({
+  export: { generated_at: generatedAt, format_version: FORMAT_VERSION, site: SITE, repository: REPO, timezone: TIMEZONE, utc_offset: UTC_OFFSET },
+  conversations: built.map(b => conversationJson(b.entry, b.messages)),
+});
+writeFileSync(join(OUT, 'masterwhats.md'), allMd);
+writeFileSync(join(OUT, 'masterwhats.json'), allJson);
+zip.file('README.md', readme(entries));
+
+const zipBuf = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE', compressionOptions: { level: 9 } });
+writeFileSync(join(OUT, 'masterwhats-export.zip'), zipBuf);
+
+console.log(`\nDone! ${built.length} conversations → ${OUT}`);
+console.log(`masterwhats.md ${(allMd.length / 1048576).toFixed(1)} MB, masterwhats.json ${(allJson.length / 1048576).toFixed(1)} MB, zip ${(zipBuf.length / 1048576).toFixed(1)} MB`);

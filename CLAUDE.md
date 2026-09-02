@@ -17,12 +17,14 @@ npm run dev           # Start dev server
   - 65,772 messages from DV ↔ Martha Graeff (2024-02-10 to 2025-08-13), in `data/messages.json`
   - 615 messages from the Federal Police report IPJ-A 3298613/2026 (23 conversations, including DV ↔ Alexandre de Moraes) — see `data/ipj-3298613/README.md`
 - **Chunking**: `scripts/split_data.py` splits every source conversation into per-date JSON files in `public/data/`
+- **Export**: `scripts/export.mjs` writes `public/export/` — one `.md` and `.json` per conversation, one of each with everything, and a zip. Reads the conversation list from `public/data/conversations.json`, messages from `data/`, profiles from `src/lib/profile-content.js`
 - **Lazy loading**: Only loads day-chunks as user scrolls, with LRU cache
 
 ## Directory Structure
 
 - `src/` — application source (styles, lib, components)
 - `public/data/` — generated chunked data (gitignored, rebuild with `npm run split-data`)
+- `public/export/` — clean export, md/json per conversation + zip (gitignored, rebuild with `npm run export`; runs after split-data, imports the profiles from src/lib)
 - `public/assets/` — static assets (favicon, background, SVGs)
 - `data/` — source data (messages.json, index.json)
 - `data/ipj-3298613/` — transcription of the IPJ-A police report (JSONL, one line per message)
@@ -48,6 +50,7 @@ npm run dev           # Vite dev server
 npm run build         # Production build
 npm run preview       # Preview production build
 npm run split-data    # Regenerate data chunks (all conversations)
+npm run export        # Clean export (md/json per conversation + zip) into public/export/
 npm run test          # Run unit tests (Vitest)
 npm run test:watch    # Unit tests in watch mode
 npm run test:e2e      # E2E tests (Playwright; starts its own dev server)
