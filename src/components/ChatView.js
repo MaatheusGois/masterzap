@@ -289,7 +289,7 @@ function renderMessage(msg) {
  */
 // Use the design system meetball icon for 3-dot menu
 
-export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout, onScreenshot }) {
+export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout, onScreenshot, onMenuOpen }) {
   // Clear container
   while (container.firstChild) container.removeChild(container.firstChild);
 
@@ -406,6 +406,9 @@ export function renderChatView(container, { conversation, dateIndex, loadMessage
     menuEl = buildMenuEl();
     header.appendChild(menuEl);
     menuOpen = true;
+    // Give the screenshot a head start: capturing takes seconds, and the tap
+    // that follows has to still be live when navigator.share() is reached.
+    if (onMenuOpen) onMenuOpen();
     setTimeout(() => {
       document.addEventListener('click', onOutsideClick, true);
     }, 0);
@@ -414,6 +417,7 @@ export function renderChatView(container, { conversation, dateIndex, loadMessage
   function showMenuAt(x, y) {
     closeMenu();
     menuEl = buildMenuEl();
+    if (onMenuOpen) onMenuOpen();
     menuEl.style.position = 'fixed';
     menuEl.style.top = `${y}px`;
     menuEl.style.left = `${x}px`;

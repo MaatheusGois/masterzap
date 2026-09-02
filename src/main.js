@@ -16,7 +16,7 @@ import { showProfileDrawer } from './components/ProfileDrawer.js';
 import { showSettingsDrawer } from './components/SettingsDrawer.js';
 import { loadReadConversations, markConversationRead } from './lib/read-state.js';
 import { showToast } from './components/Toast.js';
-import { shareChatScreenshot } from './lib/screenshot.js';
+import { shareChatScreenshot, prepareScreenshot, clearPreparedScreenshot } from './lib/screenshot.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -99,6 +99,7 @@ async function init() {
 
   /** Close the chat (loader, context menu, right drawers). */
   function closeChat() {
+    clearPreparedScreenshot();
     closeRightDrawers();
     if (activeLoader) { activeLoader.destroy(); activeLoader = null; }
     if (activeContextMenu) { activeContextMenu.destroy(); activeContextMenu = null; }
@@ -258,16 +259,19 @@ async function init() {
      * The main area is exactly the right frame for this: on mobile it fills the
      * screen, and on desktop it is the chat without the sidebar.
      */
+    const contactName = conversation.participants.find(p => p !== 'DV')
+      || conversation.participants[0];
+
     async function shareScreenshot() {
-      const contactName = conversation.participants.find(p => p !== 'DV')
-        || conversation.participants[0];
-      try {
-        const outcome = await shareChatScreenshot(mainArea, contactName);
-        // The share sheet is its own confirmation, and a cancel is not an error.
-        if (outcome === 'copied') showToast(mainArea, 'Imagem copiada');
-        if (outcome === 'downloaded') showToast(mainArea, 'Imagem salva');
-      } catch (err) {
-        console.error('Screenshot failed:', err);
+      const { outcome, reason } = await shareChatScreenshot(mainArea, contactName);
+
+      // 'shared' and 'cancelled' say themselves — the share sheet was the
+      // confirmation, and dismissing it was a decision.
+      if (outcome === 'copied') showToast(mainArea, 'Imagem copiada');
+      if (outcome === 'downloaded') showToast(mainArea, 'Imagem salva');
+      if (outcome === 'retry') showToast(mainArea, 'Toque novamente para compartilhar');
+      if (outcome === 'failed') {
+        console.error('Screenshot failed:', reason);
         showToast(mainArea, 'Não foi possível gerar a imagem');
       }
     }
@@ -297,6 +301,7 @@ async function init() {
       onAbout: openSettings,
       onSearch: toggleSearch,
       onScreenshot: shareScreenshot,
+      onMenuOpen: () => prepareScreenshot(mainArea, contactName),
       onContactClick: () => {
         // Only one right drawer at a time
         if (activeChatSearch) { activeChatSearch.destroy(); activeChatSearch = null; }

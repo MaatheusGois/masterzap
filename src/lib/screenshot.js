@@ -6,17 +6,31 @@
  * What you get is what is on screen right now: the main area is viewport-sized,
  * and the scrolled message list is clipped by its own box.
  *
- * Where the image goes depends on what the platform offers:
- *   1. the native share sheet, when the device has one that accepts files
- *   2. the clipboard
- *   3. a download, as a last resort
+ * ## Why this is not a straight line
  *
- * The first two need a secure context (https, or localhost). Served over plain
- * http — a LAN or tailnet address, say — neither API exists and every capture
- * falls through to the download.
+ * `navigator.share` and `navigator.clipboard.write` both need *transient user
+ * activation* — they must be reached while the tap that started everything is
+ * still "live", a window of a few seconds. Redrawing the DOM takes long enough
+ * on a phone to spend it, so the obvious shape
+ *
+ *     await capture(); await navigator.share(...)
+ *
+ * fails with NotAllowedError, silently falls through, and lands on a download.
+ *
+ * Two different answers, because the two APIs differ:
+ *
+ *   - The clipboard accepts a **Promise** inside ClipboardItem. `write()` is
+ *     called immediately, while the activation is fresh, and the browser waits
+ *     on the capture itself.
+ *   - Sharing takes no promise. The capture is reused instead: when the share
+ *     is refused for a spent activation, the image is kept and the next tap
+ *     shares it straight away.
+ *
+ * Both APIs also require a secure context. Served over plain http neither
+ * exists, and every capture falls through to a download.
  */
 
-/** Loaded on demand: ~50 kB that only matters once someone asks for a print. */
+/** Loaded on demand: ~200 kB that only matters once someone asks for a print. */
 async function loadHtml2Canvas() {
   const { default: html2canvas } = await import('html2canvas');
   return html2canvas;
@@ -25,6 +39,35 @@ async function loadHtml2Canvas() {
 /** True when the browser exposes the APIs that need https. */
 export function hasSecureContext() {
   return typeof window !== 'undefined' && window.isSecureContext === true;
+}
+
+/**
+ * Whether this platform can share image files at all.
+ *
+ * Probed with an empty file: canShare() only inspects the type, and asking
+ * before the capture keeps the decision out of the activation window.
+ */
+export function canShareFiles() {
+  if (typeof navigator === 'undefined' || !navigator.share || !navigator.canShare) {
+    return false;
+  }
+  try {
+    const probe = new File([], 'probe.png', { type: 'image/png' });
+    return navigator.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+function canUseClipboard() {
+  return typeof navigator !== 'undefined'
+    && !!navigator.clipboard?.write
+    && typeof ClipboardItem !== 'undefined';
+}
+
+/** A refusal that is really "your tap expired", not "you may not do this". */
+function isSpentActivation(err) {
+  return err?.name === 'NotAllowedError' || err?.name === 'InvalidStateError';
 }
 
 /**
@@ -37,6 +80,9 @@ export async function captureElement(element) {
   const rect = element.getBoundingClientRect();
 
   const canvas = await html2canvas(element, {
+    // The dropdown that started this sits inside the captured area; the picture
+    // should show the conversation, not the menu used to ask for it.
+    ignoreElements: el => el.classList?.contains('chat-dropdown-menu'),
     // Cap the pixel ratio: a 3x phone screen would otherwise produce an image
     // several times larger than anything needs.
     scale: Math.min(window.devicePixelRatio || 1, 2),
@@ -57,41 +103,73 @@ export async function captureElement(element) {
   return blob;
 }
 
+/** A filename that says which conversation the image came from. */
+export function screenshotFilename(conversationName) {
+  const slug = (conversationName || 'conversa')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `masterwhats-${slug || 'conversa'}.png`;
+}
+
 /**
- * Offer a blob to the platform.
- *
- * @param {Blob} blob
- * @param {string} filename
- * @returns {Promise<'shared'|'copied'|'downloaded'|'cancelled'>} what happened,
- *   so the caller knows whether a toast is still worth showing.
+ * A capture started when the menu opened, so the tap that follows finds the
+ * image already made and reaches navigator.share() with its activation intact.
+ * That is the whole trick: redrawing the DOM takes seconds, and the tap does
+ * not survive it.
  */
-export async function deliverImage(blob, filename) {
-  const file = new File([blob], filename, { type: 'image/png' });
+const PREPARED_WINDOW_MS = 15_000;
+let prepared = null;
 
-  // 1. Native share sheet. Its own UI is the confirmation, so a toast after it
-  //    would be noise.
-  if (navigator.canShare?.({ files: [file] }) && navigator.share) {
-    try {
-      await navigator.share({ files: [file] });
-      return 'shared';
-    } catch (err) {
-      // The user dismissing the sheet is not a failure; anything else falls
-      // through to the clipboard.
-      if (err?.name === 'AbortError') return 'cancelled';
-    }
-  }
+/**
+ * Begin capturing ahead of the tap. Safe to call repeatedly; a failure here is
+ * not surfaced, because the tap path captures again if this produced nothing.
+ *
+ * @param {HTMLElement} element
+ * @param {string} conversationName
+ */
+export function prepareScreenshot(element, conversationName) {
+  const filename = screenshotFilename(conversationName);
+  const promise = captureElement(element).catch(() => null);
+  prepared = { filename, promise, at: Date.now() };
+}
 
-  // 2. Clipboard.
-  if (navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-    try {
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      return 'copied';
-    } catch {
-      // Denied or unsupported for images — fall through.
-    }
-  }
+async function takePrepared(filename) {
+  if (!prepared) return null;
+  const fresh = prepared.filename === filename
+    && Date.now() - prepared.at < PREPARED_WINDOW_MS;
+  const promise = fresh ? prepared.promise : null;
+  prepared = null;
+  return promise ? await promise : null;
+}
 
-  // 3. Download.
+/** Drop any capture started ahead of time (leaving a chat, closing the menu). */
+export function clearPreparedScreenshot() {
+  prepared = null;
+}
+
+/**
+ * An image held from a tap whose activation ran out, so the retry is instant.
+ * Short-lived on purpose: sharing a picture of a screen the user has already
+ * scrolled away from would be worse than capturing again.
+ */
+const RETRY_WINDOW_MS = 30_000;
+let pending = null;
+
+function takePending(filename) {
+  if (!pending) return null;
+  const fresh = pending.filename === filename
+    && Date.now() - pending.at < RETRY_WINDOW_MS;
+  const blob = fresh ? pending.blob : null;
+  pending = null;
+  return blob;
+}
+
+/** Forget any held capture (exported for tests and for leaving a chat). */
+export function clearPendingScreenshot() {
+  pending = null;
+}
+
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
@@ -103,22 +181,88 @@ export async function deliverImage(blob, filename) {
   return 'downloaded';
 }
 
-/** A filename that says which conversation the image came from. */
-export function screenshotFilename(conversationName) {
-  const slug = (conversationName || 'conversa')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  return `masterwhats-${slug || 'conversa'}.png`;
+/** Clipboard, then download, for a blob we already hold. */
+async function copyOrDownload(blob, filename) {
+  if (canUseClipboard()) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      return 'copied';
+    } catch {
+      // Refused or unsupported for images — fall through.
+    }
+  }
+  return downloadBlob(blob, filename);
 }
 
 /**
  * Capture a chat and deliver it.
  *
+ * Call this straight from the click handler and do not await anything before
+ * it, or the activation both APIs depend on will already be gone.
+ *
  * @param {HTMLElement} element - the area to capture
  * @param {string} conversationName - used for the filename
- * @returns {Promise<'shared'|'copied'|'downloaded'|'cancelled'>}
+ * @returns {Promise<{outcome: string, reason?: string}>}
+ *   outcome is one of: shared | cancelled | retry | copied | downloaded | failed
  */
 export async function shareChatScreenshot(element, conversationName) {
-  const blob = await captureElement(element);
-  return deliverImage(blob, screenshotFilename(conversationName));
+  const filename = screenshotFilename(conversationName);
+
+  if (canShareFiles()) {
+    // Reuse the image from a tap that lost its activation, so this one is
+    // instant and the share sheet still opens.
+    let blob;
+    try {
+      // Prefer an image already made: from the retry hold, or from the capture
+      // started when the menu opened. Awaiting a settled promise costs only a
+      // microtask, which the activation survives.
+      blob = takePending(filename)
+        || await takePrepared(filename)
+        || await captureElement(element);
+    } catch (err) {
+      return { outcome: 'failed', reason: err?.message };
+    }
+
+    try {
+      await navigator.share({ files: [new File([blob], filename, { type: 'image/png' })] });
+      return { outcome: 'shared' };
+    } catch (err) {
+      if (err?.name === 'AbortError') return { outcome: 'cancelled' };
+
+      if (isSpentActivation(err)) {
+        // The capture outlived the tap. Hold the image so the next one shares
+        // immediately instead of falling back to something the user did not ask for.
+        pending = { filename, blob, at: Date.now() };
+        return { outcome: 'retry', reason: err?.name };
+      }
+
+      return { outcome: await copyOrDownload(blob, filename), reason: err?.name };
+    }
+  }
+
+  // No share sheet. The clipboard takes a promise, so write() runs now — while
+  // the tap is still live — and the browser waits on the capture.
+  if (canUseClipboard()) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': prepared?.promise?.then(b => b || captureElement(element))
+          || captureElement(element) }),
+      ]);
+      prepared = null;
+      return { outcome: 'copied' };
+    } catch (err) {
+      // Some builds reject a promise-valued ClipboardItem; retry with the blob.
+      try {
+        return { outcome: await copyOrDownload(await captureElement(element), filename) };
+      } catch (captureErr) {
+        return { outcome: 'failed', reason: captureErr?.message || err?.name };
+      }
+    }
+  }
+
+  try {
+    return { outcome: downloadBlob(await captureElement(element), filename) };
+  } catch (err) {
+    return { outcome: 'failed', reason: err?.message };
+  }
 }
