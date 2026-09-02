@@ -81,11 +81,22 @@ export function renderProfileSections(container, sections, sources, credits, act
     e.preventDefault();
     e.stopPropagation();
     const action = actionLink.dataset.action;
-    if (action.startsWith('action:search:')) {
+
+    // action:search:<term>            — search the conversation that's open
+    // action:search@<convId>:<term>   — open that conversation, then search it
+    const scopedSearch = action.match(/^action:search@([^:]+):(.*)$/s);
+    if (scopedSearch) {
+      if (actions.onSearch) actions.onSearch(scopedSearch[2], scopedSearch[1]);
+    } else if (action.startsWith('action:search:')) {
       const term = action.replace('action:search:', '');
       if (actions.onSearch) actions.onSearch(term);
+    } else if (action.startsWith('action:contact:')) {
+      // action:contact:<convId> — open a conversation and its contact drawer
+      const convId = action.replace('action:contact:', '');
+      if (actions.onContact) actions.onContact(convId);
     } else if (action === 'action:contact-martha') {
-      if (actions.onContactMartha) actions.onContactMartha();
+      if (actions.onContact) actions.onContact('martha-graeff');
+      else if (actions.onContactMartha) actions.onContactMartha();
     } else if (action === 'action:profile-dv') {
       if (actions.onProfileDV) actions.onProfileDV();
     }
