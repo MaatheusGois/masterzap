@@ -53,6 +53,7 @@ cd masterzap
 npm install
 npm run split-data    # Gera os arquivos JSON por data em public/data/
 npm run export        # Gera o export limpo (Markdown, JSON, zip) em public/export/
+npm run prerender     # Depois do vite build: páginas /chat/<id>, llms-full.txt e sitemap em dist/
 npm run dev           # Inicia o servidor de desenvolvimento
 ```
 

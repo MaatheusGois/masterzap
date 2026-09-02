@@ -43,12 +43,17 @@ Daniel Vorcaro, dono do Banco Master, foi preso pela Polícia Federal em novembr
 - "Acredita que o presidente bacen ja falou da nossa casa" — sobre a casa de Miami
 - "O pior de ontem foi ter o bolsonaro" — Vorcaro sobre Bolsonaro
 
+## Conteúdo completo em texto
+- https://www.masterwhats.com.br/llms-full.txt — sobre, os 24 perfis com fontes, os destaques, e o link do Markdown de cada conversa
+- Cada conversa tem página própria em https://www.masterwhats.com.br/chat/<id>, em HTML puro: proveniência, perfil com fontes e todas as mensagens com página e figura do laudo (só a conversa com Martha Graeff, de 65 mil mensagens, mostra as 200 primeiras e aponta pro Markdown completo)
+
 ## Export limpo
 Tudo que o site mostra, em texto, sem o site:
+Comece pelo arquivo de uma conversa (7 a 40 KB); os consolidados são grandes e raramente necessários.
 - Uma conversa em Markdown: https://www.masterwhats.com.br/export/masterwhats-alexandre-de-moraes.md (troque o id; os ids estão em https://www.masterwhats.com.br/data/conversations.json)
 - A mesma conversa em JSON: https://www.masterwhats.com.br/export/masterwhats-alexandre-de-moraes.json
-- Todas as conversas: https://www.masterwhats.com.br/export/masterwhats.md e https://www.masterwhats.com.br/export/masterwhats.json
-- Zip com tudo: https://www.masterwhats.com.br/export/masterwhats-export.zip
+- Todas as conversas num arquivo: https://www.masterwhats.com.br/export/masterwhats.md (3 MB) e https://www.masterwhats.com.br/export/masterwhats.json (14 MB)
+- Zip com tudo: https://www.masterwhats.com.br/export/masterwhats-export.zip (3 MB)
 Cada .md abre com proveniência (fonte, documento e sha256, período, fuso UTC-3), o perfil do contato com fontes, e as mensagens dia a dia; as do relatório da PF citam página e figura do laudo.
 
 ## Fontes
