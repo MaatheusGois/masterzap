@@ -112,3 +112,46 @@ test.describe('Chat screenshot', () => {
     await expect(page.locator('.search-toast')).toContainText(/copiada|salva/, { timeout: 20000 });
   });
 });
+
+// The clone html2canvas paints is a second, live document: it re-downloads the
+// stylesheets rather than reusing the ones already parsed on the page. When
+// that second request does not land, the capture comes out as raw HTML —
+// serif text, no bubbles, no colours — and nothing reports a failure.
+//
+// The picture must not depend on the network a second time.
+test.describe('Chat screenshot without the network', () => {
+  /** Fraction of the image within reach of a colour, 0..1. */
+  const shareOfColour = (page, dataUrl, rgb) => page.evaluate(([src, want]) =>
+    new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        const { data } = canvas.getContext('2d')
+          .getImageData(0, 0, canvas.width, canvas.height);
+        let hits = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          if (Math.abs(data[i] - want[0]) < 12
+            && Math.abs(data[i + 1] - want[1]) < 12
+            && Math.abs(data[i + 2] - want[2]) < 12) hits++;
+        }
+        resolve(hits / (data.length / 4));
+      };
+      img.src = src;
+    }), [dataUrl, rgb]);
+
+  const OUTGOING_BUBBLE = [0xd9, 0xfd, 0xd3];
+
+  test('keeps the styling when the stylesheets cannot be fetched again', async ({ page }) => {
+    await openChat(page);
+    // Everything the page needs is already parsed and on screen. From here on,
+    // a stylesheet request can only be the clone asking for it a second time.
+    await page.route('**/*.css', route => route.abort());
+
+    const dataUrl = await captureProducedImage(page);
+
+    expect(await shareOfColour(page, dataUrl, OUTGOING_BUBBLE)).toBeGreaterThan(0.02);
+  });
+});

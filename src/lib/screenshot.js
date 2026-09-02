@@ -125,6 +125,47 @@ function isSpentActivation(err) {
 }
 
 /**
+ * Put the page's own CSS inside the clone.
+ *
+ * html2canvas paints a copy of the document written into a hidden iframe, and
+ * that copy is a second live page: every <link rel="stylesheet"> in it is a
+ * fresh network request. The rules are already parsed and sitting in memory, so
+ * asking for them again buys nothing and risks everything — when the second
+ * request does not land, the capture comes out as raw HTML, serif and
+ * colourless, and nothing reports a failure.
+ *
+ * The rules are copied across and the links they came from are dropped. A sheet
+ * served from another origin (the web font) throws on cssRules; its link is
+ * left alone, so the worst case there is a fallback typeface.
+ */
+function inlineStylesheets(clonedDoc) {
+  const css = [];
+  const copied = new Set();
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    if (sheet.ownerNode?.tagName !== 'LINK' || !sheet.href) continue;
+    let rules;
+    try {
+      rules = Array.from(sheet.cssRules);
+    } catch {
+      continue;
+    }
+    css.push(rules.map(rule => rule.cssText).join('\n'));
+    copied.add(sheet.href);
+  }
+
+  if (!css.length) return;
+
+  for (const link of Array.from(clonedDoc.querySelectorAll('link[rel="stylesheet"]'))) {
+    if (copied.has(link.href)) link.remove();
+  }
+
+  const style = clonedDoc.createElement('style');
+  style.textContent = css.join('\n');
+  clonedDoc.head.appendChild(style);
+}
+
+/**
  * Render an element to a PNG blob, clipped to what is visible.
  * @param {HTMLElement} element
  * @returns {Promise<Blob>}
@@ -137,6 +178,7 @@ export async function captureElement(element) {
     // The dropdown that started this sits inside the captured area; the picture
     // should show the conversation, not the menu used to ask for it.
     ignoreElements: el => el.classList?.contains('chat-dropdown-menu'),
+    onclone: inlineStylesheets,
     // Cap the pixel ratio: a 3x phone screen would otherwise produce an image
     // several times larger than anything needs.
     scale: Math.min(window.devicePixelRatio || 1, 2),
