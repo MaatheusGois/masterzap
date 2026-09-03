@@ -1,5 +1,12 @@
 {
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/data/source/(.*)",
+      "destination": "https://github.com/rafaelbressan/masterzap/blob/main/data/source/$1",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/robots.txt",
