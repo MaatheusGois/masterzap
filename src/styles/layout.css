@@ -581,3 +581,22 @@
   width: 16px;
   height: 16px;
 }
+
+/* ── Nothing scrolls sideways, ever ────────────────────────────────────────
+   A message wider than the screen is a bug in that message; the page must
+   not make it the reader's problem by letting the whole chat drift. Every
+   layer that could scroll clips horizontally, and a bubble breaks any word. */
+html,
+body,
+.app-wrapper,
+.app-container,
+.main-area,
+.chat-messages {
+  overflow-x: hidden;
+}
+
+.chat-msg-bubble,
+.chat-msg-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

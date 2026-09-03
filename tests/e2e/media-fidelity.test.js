@@ -141,3 +141,35 @@ test('finding a word inside a voice note does not widen the chat', async ({ page
   expect(overflow.page).toBeLessThanOrEqual(0);
   expect(overflow.list).toBeLessThanOrEqual(0);
 });
+
+// Whatever ends up inside a bubble — a bad transcription, a 5000px element,
+// an unbreakable string — the reader must not be able to drag the screen
+// sideways. (A script can still scroll a clipped box; a finger or a wheel
+// cannot, and that is what this checks.)
+test('the chat never scrolls sideways, even with something far wider than the screen inside it', async ({ page }) => {
+  await page.goto('/#/chat/fabio-faria');
+  await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+  await page.evaluate(() => {
+    const bubble = document.querySelector('.chat-msg-content');
+    const wide = document.createElement('div');
+    wide.style.width = '5000px';
+    wide.style.height = '2px';
+    bubble.appendChild(wide);
+    const long = document.createElement('div');
+    long.textContent = 'x'.repeat(800);
+    long.style.whiteSpace = 'nowrap';
+    bubble.appendChild(long);
+  });
+  const list = page.locator('.chat-messages');
+  const box = await list.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(3000, 0);
+  await page.waitForTimeout(300);
+  const state = await page.evaluate(() => ({
+    pageX: window.scrollX,
+    listX: document.querySelector('.chat-messages')?.scrollLeft ?? 0,
+    mainX: document.querySelector('.main-area')?.scrollLeft ?? 0,
+    bodyX: document.body.scrollLeft,
+  }));
+  expect(state).toEqual({ pageX: 0, listX: 0, mainX: 0, bodyX: 0 });
+});
