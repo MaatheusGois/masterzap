@@ -5,7 +5,7 @@
 // `npm run build` comes first.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync, statSync } from 'fs';
+import { readFileSync, existsSync, statSync, readdirSync } from 'fs';
 import { join } from 'path';
 
 const ROOT = join(import.meta.dirname, '../..');
@@ -87,7 +87,7 @@ describe('one page per conversation', () => {
 
   it('opens that chat in the app', () => {
     for (const conv of conversations) {
-      expect(page(conv.id), conv.id).toContain(`if(!location.hash)location.replace('#/chat/${conv.id}')`);
+      expect(page(conv.id), conv.id).toContain(`location.replace('#/chat/${conv.id}')`);
     }
   });
 
@@ -115,6 +115,90 @@ describe('discovery', () => {
     expect(home).toContain('href="/llms-full.txt"');
     const robots = readFileSync(join(ROOT, 'public/robots.txt'), 'utf-8');
     expect(robots).toContain('/llms.txt');
+  });
+});
+
+describe('a conversation too big for one page', () => {
+  const months = readdirSync(join(DIST, 'chat', 'martha-graeff')).filter(n => /^\d{4}-\d{2}$/.test(n)).sort();
+
+  it('gets one page per month, and the main page lists them', () => {
+    expect(months.length).toBeGreaterThan(12);
+    const main = page('martha-graeff');
+    expect(main).toContain('<h2>Meses</h2>');
+    for (const ym of months) expect(main, ym).toContain(`<a href="/chat/martha-graeff/${ym}">`);
+  });
+
+  it('holds only that month, in order, chained to its neighbours', () => {
+    const html = readFileSync(join(DIST, 'chat/martha-graeff/2024-12/index.html'), 'utf-8');
+    expect(html).toContain('<link rel="canonical" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-12">');
+    expect(html).toContain('<link rel="prev" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-11">');
+    expect(html).toContain('<link rel="next" href="https://www.masterwhats.com.br/chat/martha-graeff/2025-01">');
+    const stamps = [...html.matchAll(/<time datetime="(\d{4}-\d{2})-\d{2}T/g)].map(m => m[1]);
+    expect(stamps.length).toBeGreaterThan(100);
+    expect(new Set(stamps)).toEqual(new Set(['2024-12']));
+    const [ld] = ldBlocks(html);
+    expect(ld['@type']).toBe('Conversation');
+    expect(ld.isPartOf['@id']).toBe(`${SITE}/chat/martha-graeff`);
+    expect(html).toContain("location.replace('#/chat/martha-graeff/msg/");
+  });
+
+  // The famous quote lives in December 2024, not among the first 200. Its
+  // anchor is on the month page, and the home page's highlight points there.
+  it('anchors the message on its month page, where the home page points', () => {
+    expect(readFileSync(join(DIST, 'chat/martha-graeff/2024-12/index.html'), 'utf-8')).toContain('<p id="msg-35686">');
+    expect(readFileSync(join(DIST, 'index.html'), 'utf-8')).toContain('href="/chat/martha-graeff/2024-12#msg-35686"');
+  });
+
+  // A static anchor link must work for a browser too: the page opens the app
+  // at that message instead of at the top of the chat.
+  it('turns a #msg-N fragment into the app route for that message', () => {
+    expect(page('alexandre-de-moraes')).toContain("location.replace('#/chat/alexandre-de-moraes/msg/'+m[1])");
+  });
+});
+
+describe('people', () => {
+  const person = (slug) => readFileSync(join(DIST, 'quem', slug, 'index.html'), 'utf-8');
+
+  it('has an index and a page per person', () => {
+    const index = readFileSync(join(DIST, 'quem/index.html'), 'utf-8');
+    expect(index).toContain('<a href="/quem/paulo-gonet">Paulo Gonet</a>');
+    expect(index).toContain('<a href="/quem/andre-esteves">André Esteves</a>');
+  });
+
+  it('lists every mention by conversation, dated, pointing at the message', () => {
+    const html = person('paulo-gonet');
+    expect(html).toContain('<h1>Paulo Gonet</h1>');
+    expect(html).toContain('Daniel Vorcaro ↔ Ciro Soares</a>');
+    expect(html).toContain('Daniel Vorcaro ↔ Ana Matos');
+    expect(html).toContain('href="/chat/ciro-soares#msg-34"');
+    expect(html).toContain('href="https://www.masterwhats.com.br/#/chat/ciro-soares/msg/34"');
+    expect(html).toContain('laudo p. 207, fig. 219');
+    expect(html).toMatch(/<time datetime="2025-03-29T13:58:\d{2}-03:00">29\/03\/2025 13:58<\/time>/);
+  });
+
+  it('says how it read the names, so an ambiguous alias is not a hidden guess', () => {
+    expect(person('paulo-gonet')).toContain('<code>paulo</code> (só em Alexandre de Moraes');
+  });
+
+  it('points a mention in the big conversation at its month page', () => {
+    expect(person('andre-esteves')).toMatch(/href="\/chat\/martha-graeff\/\d{4}-\d{2}#msg-\d+"/);
+  });
+
+  it('describes the page as being about a Person', () => {
+    const [ld] = ldBlocks(person('paulo-gonet'));
+    expect(ld['@type']).toBe('WebPage');
+    expect(ld.about).toEqual({ '@type': 'Person', name: 'Paulo Gonet', jobTitle: 'Procurador-geral da República' });
+  });
+
+  it('is in the sitemap and in llms-full.txt', () => {
+    const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
+    expect(xml).toContain(`<loc>${SITE}/quem/</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/quem/paulo-gonet</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/chat/martha-graeff/2024-12</loc>`);
+    const t = readFileSync(join(DIST, 'llms-full.txt'), 'utf-8');
+    expect(t).toContain('## Pessoas citadas (');
+    expect(t).toContain(`[Paulo Gonet](${SITE}/quem/paulo-gonet)`);
+    expect(t).toContain(`${SITE}/chat/martha-graeff/2024-12`);
   });
 });
 
@@ -149,8 +233,10 @@ describe('llms-full.txt', () => {
 
   it('cites every highlight with a link, a date and a page', () => {
     const t = text();
-    expect(t).toContain('/#/chat/alexandre-de-moraes/msg/39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
-    expect(t).toContain('/#/chat/martha-graeff/msg/35686) ⟨04/12/2024 00:33⟩');
+    expect(t).toContain('/chat/alexandre-de-moraes#msg-39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
+    // The famous quote lives in December 2024, on that month's page.
+    expect(t).toContain('/chat/martha-graeff/2024-12#msg-35686) ⟨04/12/2024 00:33⟩');
+    expect(t).toContain('## Documento-fonte do relatório da PF');
   });
 
   it('carries the profiles with their sources as links, and nothing site-only', () => {

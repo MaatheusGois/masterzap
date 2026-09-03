@@ -20,7 +20,7 @@ import { getContactProfile, VORCARO_PROFILE, SOURCES } from '../src/lib/profile-
 import { SETTINGS_CONTENT } from '../src/lib/settings-content.js';
 import {
   ROOT, SITE, REPO, TIMEZONE, UTC_OFFSET,
-  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver,
+  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver, createLocator,
   urlsIn, linksToMarkdown, longDate, phonePretty, MEDIA,
 } from './lib/corpus.mjs';
 
@@ -31,7 +31,8 @@ const generatedAt = new Date().toISOString();
 const entries = loadEntries();
 // Highlights point at messages; resolved once here, for every file below.
 const resolve = createResolver(entries);
-const md = (text, context) => linksToMarkdown(text, { resolve, context });
+const hrefFor = createLocator(entries);
+const md = (text, context) => linksToMarkdown(text, { resolve, context, hrefFor });
 
 // ── text helpers ───────────────────────────────────────────────────────────
 

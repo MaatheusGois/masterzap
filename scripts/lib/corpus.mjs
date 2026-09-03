@@ -104,12 +104,37 @@ export function createResolver(entries) {
     }
     return cache.get(id);
   };
-  return function resolve(conversationId, term) {
+  function resolve(conversationId, term) {
     const needle = normalize(term);
     const msg = messagesOf(conversationId).find(m => normalize(m.content || '').includes(needle));
     if (!msg) throw new Error(`destaque sem mensagem: ${conversationId} "${term}"`);
     return { conversationId, msg };
-  };
+  }
+  resolve.messagesOf = messagesOf;
+  return resolve;
+}
+
+/**
+ * Every message that names a person, by conversation.
+ *
+ * @returns {Map<string, object[]>} conversation id → messages, in order; only
+ *   conversations with at least one mention
+ */
+export function mentionsOf(person, entries, messagesOf) {
+  const rules = person.aliases.map(a => ({
+    re: new RegExp(`(^|[^a-z0-9])${normalize(a.match)}([^a-z0-9]|$)`),
+    only: a.only ? new Set(a.only) : null,
+    unless: a.unless ? new RegExp(a.unless) : null,
+  }));
+  const found = new Map();
+  for (const entry of entries) {
+    const hits = messagesOf(entry.id).filter(m => {
+      const text = normalize(m.content || '');
+      return rules.some(r => (!r.only || r.only.has(entry.id)) && r.re.test(text) && !(r.unless && r.unless.test(text)));
+    });
+    if (hits.length) found.set(entry.id, hits);
+  }
+  return found;
 }
 
 const brDate = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -119,6 +144,27 @@ export function citationOf(msg) {
   const parts = [`${brDate(msg.date)} ${msg.time.slice(0, 5)}`];
   if (msg.source_page) parts.push(`laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''}`);
   return parts.join(' · ');
+}
+
+/**
+ * A conversation with more messages than this gets one static page per month;
+ * its main page shows the first ones and an index of the months.
+ */
+export const PREVIEW_MESSAGES = 200;
+export const isPaged = (entry) => entry.total_messages > PREVIEW_MESSAGES;
+
+/**
+ * Where a message's anchor lives in the static site: /chat/<id>, or the month
+ * page of a conversation too big for one. Returns a path, or null for a
+ * conversation the site does not have.
+ */
+export function createLocator(entries) {
+  const byId = new Map(entries.map(e => [e.id, e]));
+  return (conversationId, msg) => {
+    const entry = byId.get(conversationId);
+    if (!entry) return null;
+    return isPaged(entry) ? `/chat/${conversationId}/${msg.date.slice(0, 7)}#msg-${msg.id}` : `/chat/${conversationId}#msg-${msg.id}`;
+  };
 }
 
 export const messageUrl = (conversationId, msg) => `${SITE}/#/chat/${conversationId}/msg/${msg.id}`;
@@ -155,6 +201,11 @@ function targetOf(url, { resolve, context } = {}) {
  * @param {string} [opts.context] - conversation for `action:search:` links
  * @param {string} [opts.samePage] - in html, messages of this conversation
  *   are linked by anchor rather than by site URL
+ * @param {function} [opts.hrefFor] - where a message's anchor lives in the
+ *   static site: (conversationId, msg) => path, or null to fall back to the
+ *   app's hash route. A path is made absolute in Markdown.
+ * @param {string} [opts.fromPath] - the page being rendered; a link to an
+ *   anchor on that same page is written as just the fragment
  */
 export function renderLinks(text, opts = {}) {
   const mode = opts.mode || 'md';
@@ -174,8 +225,11 @@ export function renderLinks(text, opts = {}) {
       case 'external':
         out += link(label, target.url); break;
       case 'message': {
-        const href = (mode === 'html' && opts.samePage === target.conversationId)
-          ? `#msg-${target.msg.id}` : messageUrl(target.conversationId, target.msg);
+        let placed = opts.hrefFor?.(target.conversationId, target.msg) || null;
+        if (placed && opts.fromPath && placed.startsWith(`${opts.fromPath}#`)) placed = placed.slice(opts.fromPath.length);
+        if (placed && mode === 'md' && placed.startsWith('/')) placed = `${SITE}${placed}`;
+        const href = placed || ((mode === 'html' && opts.samePage === target.conversationId)
+          ? `#msg-${target.msg.id}` : messageUrl(target.conversationId, target.msg));
         out += link(label, href) + cite(target.msg); break;
       }
       case 'conversation':
