@@ -21,7 +21,7 @@ export const PEOPLE = [
     slug: 'paulo-gonet',
     name: 'Paulo Gonet',
     role: 'Procurador-geral da República',
-    aliases: [{ match: 'gonet' }, { match: 'paulo', only: ['alexandre-de-moraes'] }],
+    aliases: [{ match: 'gonet', unless: 'pedro gonet|pedrinho' }, { match: 'paulo', only: ['alexandre-de-moraes'] }],
   },
   {
     slug: 'alexandre-de-moraes',

@@ -48,6 +48,7 @@ export function sourceOf(entry) {
       label: entry.source,
       document: doc.file || null,
       document_url: doc.url || null,
+      document_download: doc.download || null,
       document_sha256: doc.sha256 || null,
       document_pages: doc.pages || null,
       made_public: '2026-09-01',
@@ -128,10 +129,14 @@ export function mentionsOf(person, entries, messagesOf) {
   }));
   const found = new Map();
   for (const entry of entries) {
-    const hits = messagesOf(entry.id).filter(m => {
+    const hits = [];
+    for (const m of messagesOf(entry.id)) {
       const text = normalize(m.content || '');
-      return rules.some(r => (!r.only || r.only.has(entry.id)) && r.re.test(text) && !(r.unless && r.unless.test(text)));
-    });
+      const rule = rules.find(r => (!r.only || r.only.has(entry.id)) && r.re.test(text) && !(r.unless && r.unless.test(text)));
+      // Each hit remembers the alias that found it, so a page can say
+      // "8 by «gonet», 5 by «paulo»" instead of one inferred total.
+      if (rule) hits.push({ msg: m, alias: person.aliases[rules.indexOf(rule)].match });
+    }
     if (hits.length) found.set(entry.id, hits);
   }
   return found;

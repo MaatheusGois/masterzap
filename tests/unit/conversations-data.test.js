@@ -35,6 +35,12 @@ describe('conversations.json', () => {
     }
   });
 
+  it('names the contact as a field, not as "the participant that is not DV"', () => {
+    for (const conv of conversations) {
+      expect(conv.contact, conv.id).toBe(conv.participants.find(p => p !== 'DV') || conv.participants[0]);
+    }
+  });
+
   it('has a positive message count everywhere', () => {
     for (const conv of conversations) {
       expect(conv.total_messages, conv.id).toBeGreaterThan(0);
@@ -141,6 +147,7 @@ describe('the police report as a document', () => {
       expect(conv.source_document?.pages, conv.id).toBeGreaterThan(0);
       expect(conv.source_document?.file, conv.id).toMatch(/\.pdf$/);
       expect(conv.source_document?.url, conv.id).toMatch(/^https:\/\/github\.com\/.*\.pdf$/);
+      expect(conv.source_document?.download, conv.id).toMatch(/^https:\/\/raw\.githubusercontent\.com\/.*\.pdf$/);
     }
   });
 

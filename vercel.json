@@ -3,7 +3,7 @@
   "redirects": [
     {
       "source": "/data/source/(.*)",
-      "destination": "https://github.com/rafaelbressan/masterzap/blob/main/data/source/$1",
+      "destination": "https://raw.githubusercontent.com/rafaelbressan/masterzap/main/data/source/$1",
       "permanent": false
     }
   ],

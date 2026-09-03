@@ -20,7 +20,7 @@ import { getContactProfile, VORCARO_PROFILE, SOURCES } from '../src/lib/profile-
 import { SETTINGS_CONTENT } from '../src/lib/settings-content.js';
 import {
   ROOT, SITE, REPO, TIMEZONE, UTC_OFFSET,
-  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver, createLocator,
+  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver, createLocator, isPaged,
   urlsIn, linksToMarkdown, longDate, phonePretty, MEDIA,
 } from './lib/corpus.mjs';
 
@@ -32,6 +32,8 @@ const entries = loadEntries();
 // Highlights point at messages; resolved once here, for every file below.
 const resolve = createResolver(entries);
 const hrefFor = createLocator(entries);
+const monthFmt = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' });
+const monthName = (ym) => monthFmt.format(new Date(`${ym}-15T12:00:00`));
 const md = (text, context) => linksToMarkdown(text, { resolve, context, hrefFor });
 
 // ── text helpers ───────────────────────────────────────────────────────────
@@ -101,7 +103,7 @@ function profileJson(profile, context) {
 
 // ── one conversation ───────────────────────────────────────────────────────
 
-function conversationMarkdown(entry, messages, { standalone = true } = {}) {
+function conversationMarkdown(entry, messages, { standalone = true, month = null } = {}) {
   const contact = contactOf(entry);
   const source = sourceOf(entry);
   const profile = getContactProfile(entry.id);
@@ -109,17 +111,17 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
   const sub = standalone ? '##' : '###';
   const out = [];
 
-  out.push(`${heading} Daniel Vorcaro ↔ ${contact}`, '');
+  out.push(`${heading} Daniel Vorcaro ↔ ${contact}${month ? ` — ${monthName(month)}` : ''}`, '');
   if (standalone) {
-    out.push(`> Exportado de [MasterWhats](${SITE}/#/chat/${entry.id}) em ${generatedAt.slice(0, 10)}. Código e dados: ${REPO}.`, '');
+    out.push(`> Exportado de [MasterWhats](${SITE}/#/chat/${entry.id}) em ${generatedAt.slice(0, 10)}.${month ? ` Só ${monthName(month)} (${messages.length} mensagens); a conversa inteira está em masterwhats-${entry.id}.md.` : ''} Código e dados: ${REPO}.`, '');
   }
 
   out.push(`${sub} Proveniência`, '', '| | |', '|---|---|');
   out.push(`| Fonte | ${source.label} |`);
   if (source.document) out.push(`| Documento | \`${source.document}\`${source.document_pages ? `, ${source.document_pages} páginas` : ''}${source.document_url ? ` — [no repositório](${source.document_url})` : ''} (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
   out.push(`| Como chegou ao público | ${source.how} |`);
-  out.push(`| Período | ${entry.date_range.start} a ${entry.date_range.end} |`);
-  out.push(`| Mensagens | ${entry.total_messages} |`);
+  out.push(`| Período | ${month ? `${messages[0].date} a ${messages.at(-1).date}` : `${entry.date_range.start} a ${entry.date_range.end}`} |`);
+  out.push(`| Mensagens | ${month ? `${messages.length} (de ${entry.total_messages} na conversa)` : entry.total_messages} |`);
   if (entry.saved_as) out.push(`| Contato salvo como | ${entry.saved_as} |`);
   if (entry.phone) out.push(`| Telefone | ${phonePretty(entry.phone)} |`);
   out.push(`| Fuso dos horários | ${TIMEZONE} (UTC${UTC_OFFSET}) |`);
@@ -255,6 +257,21 @@ for (const entry of entries) {
   zip.file(`masterwhats-${entry.id}.json`, jsonText);
   built.push({ entry, messages });
   console.log(`${entry.id}: ${messages.length} messages, ${(mdText.length / 1024).toFixed(0)} kB md`);
+
+  // A conversation too big for one page also comes one month at a time, so a
+  // reader after a single exchange does not have to take all of it.
+  if (isPaged(entry)) {
+    const months = new Map();
+    for (const m of messages) { const ym = m.date.slice(0, 7); if (!months.has(ym)) months.set(ym, []); months.get(ym).push(m); }
+    for (const [ym, msgs] of months) {
+      const monthMd = conversationMarkdown(entry, msgs, { month: ym });
+      const monthJson = JSON.stringify({ ...conversationJson(entry, msgs), month: ym }, null, 1);
+      writeFileSync(join(OUT, `masterwhats-${entry.id}-${ym}.md`), monthMd);
+      writeFileSync(join(OUT, `masterwhats-${entry.id}-${ym}.json`), monthJson);
+      zip.file(`meses/masterwhats-${entry.id}-${ym}.md`, monthMd);
+    }
+    console.log(`${entry.id}: ${months.size} monthly files`);
+  }
 }
 
 const allMd = allMarkdown(built);

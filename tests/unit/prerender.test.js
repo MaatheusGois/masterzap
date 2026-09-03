@@ -168,8 +168,12 @@ describe('people', () => {
   it('lists every mention by conversation, dated, pointing at the message', () => {
     const html = person('paulo-gonet');
     expect(html).toContain('<h1>Paulo Gonet</h1>');
+    // Counts say which alias found what; a hit by an alias is marked.
+    expect(html).toMatch(/\d+ por «gonet», \d+ por «paulo»/);
+    expect(html).toContain('· por «paulo»</small>');
+    // The son is not the father.
+    expect(html).not.toContain('Pedro Gonet');
     expect(html).toContain('Daniel Vorcaro ↔ Ciro Soares</a>');
-    expect(html).toContain('Daniel Vorcaro ↔ Ana Matos');
     expect(html).toContain('href="/chat/ciro-soares#msg-34"');
     expect(html).toContain('href="https://www.masterwhats.com.br/#/chat/ciro-soares/msg/34"');
     expect(html).toContain('laudo p. 207, fig. 219');
@@ -192,7 +196,8 @@ describe('people', () => {
 
   it('is in the sitemap and in llms-full.txt', () => {
     const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
-    expect(xml).toContain(`<loc>${SITE}/quem/</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/quem</loc>`);
+    expect(xml).not.toContain(`<loc>${SITE}/quem/</loc>`);
     expect(xml).toContain(`<loc>${SITE}/quem/paulo-gonet</loc>`);
     expect(xml).toContain(`<loc>${SITE}/chat/martha-graeff/2024-12</loc>`);
     const t = readFileSync(join(DIST, 'llms-full.txt'), 'utf-8');
@@ -214,7 +219,7 @@ describe('the home page', () => {
 describe('llms.txt', () => {
   it('quotes the real size of the big files', () => {
     const t = readFileSync(join(DIST, 'llms.txt'), 'utf-8');
-    const real = (statSync(join(DIST, 'export/masterwhats.md')).size / 1048576).toFixed(1);
+    const real = (statSync(join(DIST, 'export/masterwhats.md')).size / 1e6).toFixed(1);
     expect(t).toContain(`masterwhats.md (${real} MB)`);
   });
 });

@@ -119,6 +119,24 @@ describe('the Markdown', () => {
   });
 });
 
+describe('the big conversation, one month at a time', () => {
+  it('writes a Markdown and a JSON per month, each saying what it is', () => {
+    const md = readFileSync(join(EXPORT_DIR, 'masterwhats-martha-graeff-2024-12.md'), 'utf-8');
+    expect(md).toMatch(/^# Daniel Vorcaro ↔ Martha Graeff — dezembro de 2024/);
+    expect(md).toContain('· msg 35686');
+    expect(md).toContain('(de 65772 na conversa)');
+    const lines = md.split('\n').filter(l => /^\*\*.+\*\* · (\d{4}-\d{2})-\d{2} /.test(l));
+    expect(new Set(lines.map(l => l.match(/· (\d{4}-\d{2})-/)[1]))).toEqual(new Set(['2024-12']));
+    const j = JSON.parse(readFileSync(join(EXPORT_DIR, 'masterwhats-martha-graeff-2024-12.json'), 'utf-8'));
+    expect(j.month).toBe('2024-12');
+    expect(j.messages.length).toBe(lines.length);
+  });
+
+  it('does not split the small ones', () => {
+    expect(existsSync(join(EXPORT_DIR, 'masterwhats-ciro-soares-2025-03.md'))).toBe(false);
+  });
+});
+
 describe('everything at once', () => {
   it('writes one Markdown with every conversation in it', () => {
     const text = readFileSync(join(EXPORT_DIR, 'masterwhats.md'), 'utf-8');
