@@ -115,7 +115,7 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
 
   out.push(`${sub} Proveniência`, '', '| | |', '|---|---|');
   out.push(`| Fonte | ${source.label} |`);
-  if (source.document) out.push(`| Documento | \`${source.document}\`${source.document_pages ? `, ${source.document_pages} páginas` : ''} (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
+  if (source.document) out.push(`| Documento | \`${source.document}\`${source.document_pages ? `, ${source.document_pages} páginas` : ''}${source.document_url ? ` — [no repositório](${source.document_url})` : ''} (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
   out.push(`| Como chegou ao público | ${source.how} |`);
   out.push(`| Período | ${entry.date_range.start} a ${entry.date_range.end} |`);
   out.push(`| Mensagens | ${entry.total_messages} |`);
@@ -137,7 +137,7 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
       out.push(`${standalone ? '###' : '####'} ${longDate(day)}`, '');
     }
     // Time to the second and the message id: the key a citation needs.
-    const tags = [msg.time, `msg ${msg.id}`];
+    const tags = [`${msg.date} ${msg.time}`, `msg ${msg.id}`];
     if (msg.is_edited) tags.push('editada');
     if (msg.view_once) tags.push('visualização única');
     if (msg.source_page) tags.push(`laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''}`);

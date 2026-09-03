@@ -5,7 +5,7 @@
 // `npm run build` comes first.
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, statSync } from 'fs';
 import { join } from 'path';
 
 const ROOT = join(import.meta.dirname, '../..');
@@ -47,6 +47,9 @@ describe('one page per conversation', () => {
     const html = page('ciro-soares');
     expect(html).toContain('218 páginas');
     expect(html).toMatch(/<dt>sha256 do documento<\/dt><dd><code>[0-9a-f]{64}<\/code><\/dd>/);
+    // The path is the repository's; a crawler must not fetch it from the site.
+    expect(html).toContain('href="https://github.com/rafaelbressan/masterzap/blob/main/data/source/');
+    expect(html).toContain('o site não serve o PDF');
     const [ld] = ldBlocks(html);
     expect(ld.isBasedOn.numberOfPages).toBe(218);
     expect(ld.isBasedOn.identifier.value).toMatch(/^[0-9a-f]{64}$/);
@@ -121,6 +124,14 @@ describe('the home page', () => {
     const dataset = blocks.find(b => b['@type'] === 'Dataset');
     expect(dataset['@id']).toBe(`${SITE}/#dataset`);
     expect(dataset.distribution.map(d => d.contentUrl)).toContain(`${SITE}/export/masterwhats-export.zip`);
+  });
+});
+
+describe('llms.txt', () => {
+  it('quotes the real size of the big files', () => {
+    const t = readFileSync(join(DIST, 'llms.txt'), 'utf-8');
+    const real = (statSync(join(DIST, 'export/masterwhats.md')).size / 1048576).toFixed(1);
+    expect(t).toContain(`masterwhats.md (${real} MB)`);
   });
 });
 

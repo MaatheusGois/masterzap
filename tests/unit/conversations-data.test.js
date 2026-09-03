@@ -140,6 +140,7 @@ describe('the police report as a document', () => {
       expect(conv.source_document?.sha256, conv.id).toMatch(/^[0-9a-f]{64}$/);
       expect(conv.source_document?.pages, conv.id).toBeGreaterThan(0);
       expect(conv.source_document?.file, conv.id).toMatch(/\.pdf$/);
+      expect(conv.source_document?.url, conv.id).toMatch(/^https:\/\/github\.com\/.*\.pdf$/);
     }
   });
 
