@@ -13,6 +13,7 @@
 import { defaultAvatarSvg } from '../lib/avatar.js';
 import { conversationForPhone } from '../lib/media.js';
 
+const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 const ICON_BACK = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>`;
 export const ICON_MESSAGE = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`;
 export const ICON_CALL = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>`;
@@ -37,8 +38,9 @@ export function showContactsSheet(container, contacts, { conversations, avatarFo
   bar.className = 'contacts-sheet-bar';
   const back = document.createElement('button');
   back.className = 'contacts-sheet-back';
-  back.setAttribute('aria-label', 'Voltar');
-  back.innerHTML = ICON_BACK;
+  back.setAttribute('aria-label', 'Fechar');
+  // A back arrow on the phone, an X on the web; CSS shows one per width.
+  back.innerHTML = `<span class="is-back">${ICON_BACK}</span><span class="is-close">${ICON_CLOSE}</span>`;
   bar.appendChild(back);
   const title = document.createElement('span');
   title.className = 'contacts-sheet-title';
@@ -60,6 +62,9 @@ export function showContactsSheet(container, contacts, { conversations, avatarFo
   function onKeydown(e) { if (e.key === 'Escape') close(); }
   back.addEventListener('click', close);
   document.addEventListener('keydown', onKeydown, true);
+  // On a wide screen the sheet is a dialog over a dimmed chat; clicking the
+  // dim closes it. On the phone it fills the screen and there is nothing to hit.
+  sheet.addEventListener('click', (e) => { if (e.target === sheet) close(); });
 
   container.appendChild(sheet);
   return { element: sheet, close };

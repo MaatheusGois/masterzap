@@ -1303,3 +1303,41 @@
   color: inherit;
   cursor: pointer;
 }
+
+/* On a wide screen WhatsApp Web opens shared contacts as a centred dialog
+   over the chat, not as a page; the phone keeps the full screen. */
+@media (min-width: 601px) {
+  .contacts-sheet {
+    background: rgba(17, 27, 33, 0.55);
+    align-items: center;
+    justify-content: center;
+  }
+
+  .contacts-sheet-bar,
+  .contacts-sheet-list {
+    width: min(480px, calc(100vw - 48px));
+    background: var(--WDS-white);
+  }
+
+  .contacts-sheet-bar {
+    border-radius: 12px 12px 0 0;
+    box-sizing: border-box;
+  }
+
+  .contacts-sheet-list {
+    flex: 0 1 auto;
+    max-height: 70vh;
+    border-radius: 0 0 12px 12px;
+    box-sizing: border-box;
+  }
+
+  .contacts-sheet-item:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.contacts-sheet-back .is-close { display: none; }
+@media (min-width: 601px) {
+  .contacts-sheet-back .is-back { display: none; }
+  .contacts-sheet-back .is-close { display: flex; }
+}
