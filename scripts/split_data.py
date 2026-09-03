@@ -151,6 +151,7 @@ def describe_report_document():
     return {
         "file": REPORT_PDF,
         "url": f"https://github.com/rafaelbressan/masterzap/blob/main/{REPORT_PDF}",
+        "download": f"https://raw.githubusercontent.com/rafaelbressan/masterzap/main/{REPORT_PDF}",
         "sha256": sha,
         "pages": pages,
     }
@@ -195,9 +196,12 @@ def split_conversation(conv_id, data, index):
     type_counts = Counter(msg["type"] for msg in messages)
 
     last_msg = messages[-1] if messages else None
+    other = [p for p in metadata["participants"] if p != "DV"]
     entry = {
         "id": conv_id,
         "participants": metadata["participants"],
+        # The other side, by name, so nobody has to know "the one that is not DV".
+        "contact": other[0] if other else metadata["participants"][0],
         "date_range": normalise_date_range(metadata["date_range"]),
         "total_messages": metadata["total_messages"],
         # Drives the "Mídias, links e documentos" count in the contact drawer.

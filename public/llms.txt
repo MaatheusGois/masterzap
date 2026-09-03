@@ -45,8 +45,8 @@ Daniel Vorcaro, dono do Banco Master, foi preso pela Polícia Federal em novembr
 
 ## Conteúdo completo em texto
 - https://www.masterwhats.com.br/llms-full.txt — sobre, os 24 perfis com fontes, os destaques, e o link do Markdown de cada conversa
-- Cada conversa tem página própria em https://www.masterwhats.com.br/chat/<id>, em HTML puro: proveniência, perfil com fontes e todas as mensagens com página e figura do laudo. A conversa com Martha Graeff (65 mil mensagens) tem uma página por mês — https://www.masterwhats.com.br/chat/martha-graeff/2024-12 — listadas na página principal
-- Pessoas citadas: https://www.masterwhats.com.br/quem/ — uma página por pessoa (ex.: https://www.masterwhats.com.br/quem/paulo-gonet) com toda menção, por conversa, datada e apontando para a mensagem
+- Cada conversa tem página própria em https://www.masterwhats.com.br/chat/<id>, em HTML puro: proveniência, perfil com fontes e todas as mensagens com página e figura do laudo. A conversa com Martha Graeff (65 mil mensagens) tem uma página por mês — https://www.masterwhats.com.br/chat/martha-graeff/2024-12 — listadas na página principal, e um Markdown por mês: https://www.masterwhats.com.br/export/masterwhats-martha-graeff-2024-12.md
+- Pessoas citadas: https://www.masterwhats.com.br/quem — uma página por pessoa (ex.: https://www.masterwhats.com.br/quem/paulo-gonet) com toda menção, por conversa, datada e apontando para a mensagem
 
 ## Export limpo
 Tudo que o site mostra, em texto, sem o site:
@@ -64,7 +64,7 @@ Cada .md abre com proveniência (fonte, documento com páginas e sha256, períod
 ## Documento-fonte do relatório da PF
 - Arquivo: data/source/IPJ-A-3298613-2026.pdf — 218 páginas
 - sha256: 23cfdfa410c47ab09cbb2b443965e3a3095d9bc3dc5fb266efff76d6f5192b60
-- Onde obter: https://github.com/rafaelbressan/masterzap/blob/main/data/source/IPJ-A-3298613-2026.pdf — o site não serve o PDF; https://www.masterwhats.com.br/data/source/... redireciona para o repositório
+- Onde obter: https://github.com/rafaelbressan/masterzap/blob/main/data/source/IPJ-A-3298613-2026.pdf (página) ou https://raw.githubusercontent.com/rafaelbressan/masterzap/main/data/source/IPJ-A-3298613-2026.pdf (os bytes, 32 MB) — o site não serve o PDF; https://www.masterwhats.com.br/data/source/... redireciona para os bytes
 - Os destaques abaixo e no llms-full.txt já trazem o link e ⟨data hora · laudo p., fig.⟩
 
 ## Fontes

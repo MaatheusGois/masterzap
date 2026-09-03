@@ -273,6 +273,7 @@ function monthPage(entry, who, ym, msgs, prevYm, nextYm) {
     + (prevYm ? `<a href="${parent}/${prevYm}" rel="prev">${longMonth(prevYm)}</a> · ` : '')
     + (nextYm ? `<a href="${parent}/${nextYm}" rel="next">${longMonth(nextYm)}</a> · ` : '')
     + `<a href="/#/chat/${entry.id}/msg/${msgs[0].id}">Abrir no MasterWhats</a> · `
+    + `<a href="/export/masterwhats-${entry.id}-${ym}.md">Markdown deste mês</a> · `
     + `<a href="/export/masterwhats-${entry.id}.md">Markdown completo</a></p>`);
   out.push(...messagesHtml(msgs));
   out.push('</article>');
@@ -333,7 +334,7 @@ ${JSON.stringify(jsonLd, null, 2)}
 </head>
 <body>
 <main>
-<header><a href="/">MasterWhats</a> · <a href="/quem/">Pessoas citadas</a></header>
+<header><a href="/">MasterWhats</a> · <a href="/quem">Pessoas citadas</a></header>
 ${body}
 </main>
 </body>
@@ -341,10 +342,10 @@ ${body}
 `;
 }
 
-function mentionHtml(conversationId, msg) {
+function mentionHtml(conversationId, msg, alias, primary) {
   const cite = msg.source_page ? ` <small>(laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''})</small>` : '';
   return `<div class="msg" id="m-${conversationId}-${msg.id}">`
-    + `<time datetime="${msg.timestamp}${UTC_OFFSET}">${citationOf(msg).split(' · ')[0]}</time> · <b>${escapeHtml(msg.sender)}</b>${cite}<br>`
+    + `<time datetime="${msg.timestamp}${UTC_OFFSET}">${citationOf(msg).split(' · ')[0]}</time> · <b>${escapeHtml(msg.sender)}</b>${cite}${alias !== primary ? ` <small>· por «${escapeHtml(alias)}»</small>` : ''}<br>`
     + `${escapeHtml(messageText(msg))}<br>`
     + `<span class="links"><a href="${locate(conversationId, msg)}">ver na conversa</a> · <a href="${messageUrl(conversationId, msg)}">no app</a> · msg ${msg.id}</span>`
     + `</div>`;
@@ -354,16 +355,21 @@ function personPage(person, mentions) {
   const path = `/quem/${person.slug}`;
   const total = [...mentions.values()].reduce((n, v) => n + v.length, 0);
   const convs = [...mentions.keys()].map(id => byId.get(id));
+  const primary = person.aliases[0].match;
+  const byAlias = new Map();
+  for (const hits of mentions.values()) for (const { alias } of hits) byAlias.set(alias, (byAlias.get(alias) || 0) + 1);
+  // In the order the aliases are declared: the name first, the nicknames after.
+  const breakdown = person.aliases.filter(a => byAlias.has(a.match)).map(a => `${byAlias.get(a.match)} por «${a.match}»`).join(', ');
   const description = `${person.name}, ${person.role}: ${total} menções em ${convs.length} conversa${convs.length === 1 ? '' : 's'} dos celulares de Daniel Vorcaro — ${convs.map(contactOf).join(', ')}.`;
   const body = [];
   body.push(`<h1>${escapeHtml(person.name)}</h1>`);
   body.push(`<p class="role">${escapeHtml(person.role)}${person.profile ? ` · <a href="/chat/${person.profile}">perfil e conversa com Vorcaro</a>` : ''}</p>`);
-  body.push(`<p>${total} menções em ${convs.length} conversa${convs.length === 1 ? '' : 's'}. Cada uma linka a mensagem na conversa e no app; as do relatório da PF citam página e figura do laudo.</p>`);
-  body.push(`<p class="how">Como as mensagens se referem a essa pessoa: ${person.aliases.map(a => `<code>${escapeHtml(a.match)}</code>${a.only ? ` (só em ${a.only.map(id => contactOf(byId.get(id))).join(', ')})` : ''}`).join(', ')}.</p>`);
-  for (const [id, msgs] of mentions) {
+  body.push(`<p>${total} menções em ${convs.length} conversa${convs.length === 1 ? '' : 's'} — ${breakdown}. Cada uma linka a mensagem na conversa e no app; as do relatório da PF citam página e figura do laudo.</p>`);
+  body.push(`<p class="how">Como as mensagens se referem a essa pessoa: ${person.aliases.map(a => `<code>${escapeHtml(a.match)}</code>${a.only ? ` (só em ${a.only.map(id => contactOf(byId.get(id))).join(', ')})` : ''}`).join(', ')}. Uma menção achada por um apelido que não é o nome vem marcada.</p>`);
+  for (const [id, hits] of mentions) {
     const entry = byId.get(id);
-    body.push(`<h2><a href="/chat/${id}">Daniel Vorcaro ↔ ${escapeHtml(contactOf(entry))}</a> — ${msgs.length} men${msgs.length === 1 ? 'ção' : 'ções'}</h2>`);
-    for (const msg of msgs) body.push(mentionHtml(id, msg));
+    body.push(`<h2><a href="/chat/${id}">Daniel Vorcaro ↔ ${escapeHtml(contactOf(entry))}</a> — ${hits.length} men${hits.length === 1 ? 'ção' : 'ções'}</h2>`);
+    for (const { msg, alias } of hits) body.push(mentionHtml(id, msg, alias, primary));
   }
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -388,10 +394,10 @@ function peopleIndex(people) {
   }
   body.push('</ul>');
   const jsonLd = {
-    '@context': 'https://schema.org', '@type': 'CollectionPage', '@id': `${SITE}/quem/`, url: `${SITE}/quem/`,
+    '@context': 'https://schema.org', '@type': 'CollectionPage', '@id': `${SITE}/quem`, url: `${SITE}/quem`,
     name: 'Pessoas citadas nas conversas de Daniel Vorcaro', inLanguage: 'pt-BR', isPartOf: { '@id': `${SITE}/#dataset` }, dateModified: today,
   };
-  return standalone({ title: 'Pessoas citadas — MasterWhats', description: 'Quem aparece nas conversas de Daniel Vorcaro, com toda menção datada e apontando para a mensagem.', path: '/quem/', jsonLd, body: body.join('\n') });
+  return standalone({ title: 'Pessoas citadas — MasterWhats', description: 'Quem aparece nas conversas de Daniel Vorcaro, com toda menção datada e apontando para a mensagem.', path: '/quem', jsonLd, body: body.join('\n') });
 }
 
 // ── llms-full.txt ──────────────────────────────────────────────────────────
@@ -422,7 +428,7 @@ function llmsFull(built, people) {
     const source = sourceOf(entry);
     out.push(`### ${who} — ${entry.total_messages} mensagens, ${entry.date_range.start} a ${entry.date_range.end}`, '');
     out.push(`- Página: ${SITE}/chat/${entry.id}`);
-    if (months) out.push(`- Um mês por página: ${[...months.keys()].map(ym => `${SITE}/chat/${entry.id}/${ym}`).join(' · ')}`);
+    if (months) out.push(`- Um mês por página: ${[...months.keys()].map(ym => `${SITE}/chat/${entry.id}/${ym}`).join(' · ')}`, `- Markdown por mês (troque o mês): ${SITE}/export/masterwhats-${entry.id}-${[...months.keys()][0]}.md`);
     out.push(`- Conversa completa em Markdown: ${SITE}/export/masterwhats-${entry.id}.md · JSON: ${SITE}/export/masterwhats-${entry.id}.json`);
     out.push(`- Fonte: ${source.label}`);
     if (entry.saved_as) out.push(`- Salvo no celular como: ${entry.saved_as}`);
@@ -430,9 +436,9 @@ function llmsFull(built, people) {
     out.push('');
     out.push(...profileParagraphs(profile, entry.id));
   }
-  out.push(`## Pessoas citadas (${people.length})`, '', `Índice em ${SITE}/quem/ — cada página lista toda menção, por conversa, datada e apontando para a mensagem.`, '');
+  out.push(`## Pessoas citadas (${people.length})`, '', `Índice em ${SITE}/quem — cada página lista toda menção, por conversa, datada e apontando para a mensagem.`, '');
   for (const { person, mentions } of people) {
-    const per = [...mentions].map(([id, msgs]) => `${contactOf(byId.get(id))} (${msgs.length})`).join(', ');
+    const per = [...mentions].map(([id, hits]) => `${contactOf(byId.get(id))} (${hits.length})`).join(', ');
     out.push(`- [${person.name}](${SITE}/quem/${person.slug}) — ${person.role}. Citado em: ${per}.`);
   }
   out.push('');
@@ -445,7 +451,7 @@ function llmsFull(built, people) {
     out.push('## Documento-fonte do relatório da PF', '',
       `- Arquivo: ${report.file} — ${report.pages} páginas`,
       `- sha256: ${report.sha256}`,
-      `- Onde obter: ${report.url} (o site não serve o PDF; o caminho acima é do repositório)`, '');
+      `- Onde obter: ${report.url} (página) ou ${report.download} (os bytes) — o site não serve o PDF; o caminho acima é do repositório`, '');
   }
   out.push('## Fontes gerais', '', ...SOURCES.map(s => `- [${s.label}](${s.url})`), '');
   out.push('## Export', '',
@@ -467,7 +473,7 @@ function sitemap(built, people) {
     rows.push(url(`${SITE}/chat/${entry.id}`, headline ? '0.9' : '0.8'));
     if (months) for (const ym of months.keys()) rows.push(url(`${SITE}/chat/${entry.id}/${ym}`, '0.6', 'monthly'));
   }
-  rows.push(url(`${SITE}/quem/`, '0.8'));
+  rows.push(url(`${SITE}/quem`, '0.8'));
   for (const { person } of people) rows.push(url(`${SITE}/quem/${person.slug}`, '0.7'));
   rows.push(url(`${SITE}/llms.txt`, '0.7'));
   rows.push(url(`${SITE}/llms-full.txt`, '0.7'));
@@ -517,7 +523,7 @@ writeFileSync(join(DIST, 'quem', 'index.html'), peopleIndex(people));
 
 // The sizes the index quotes decide whether a crawler downloads a file. They
 // are stamped from the files themselves rather than typed and forgotten.
-const mb = (name) => `${(statSync(join(DIST, 'export', name)).size / 1048576).toFixed(1)} MB`;
+const mb = (name) => `${(statSync(join(DIST, 'export', name)).size / 1e6).toFixed(1)} MB`;
 const SIZES = { 'masterwhats.md': mb('masterwhats.md'), 'masterwhats.json': mb('masterwhats.json'), 'masterwhats-export.zip': mb('masterwhats-export.zip') };
 const stampSizes = (text) => text.replace(/(masterwhats(?:-export)?\.(?:md|json|zip)) \([\d.,]+ MB\)/g, (m, name) => `${name} (${SIZES[name] || m.slice(name.length + 2, -1)})`);
 writeFileSync(join(DIST, 'llms.txt'), stampSizes(readFileSync(join(DIST, 'llms.txt'), 'utf-8')));
