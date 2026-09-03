@@ -1115,3 +1115,191 @@
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Calls screen ──────────────────────────────────────────────────────────
+   Takes the chat list's place in the sidebar; the header, search and filter
+   tabs are the list's, so they step aside. */
+.sidebar--calls .sidebar-header,
+.sidebar--calls .sidebar-search,
+.sidebar--calls .sidebar-tags,
+.sidebar--calls .conversation-list {
+  display: none;
+}
+
+.calls-panel {
+  display: none;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--WDS-white);
+}
+
+.sidebar--calls .calls-panel {
+  display: flex;
+}
+
+.calls-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 8px 8px 16px;
+}
+
+.calls-title {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--WDS-content-default);
+}
+
+.calls-header-btn {
+  display: flex;
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--WDS-content-default);
+}
+
+.calls-header-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.calls-actions {
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 8px 16px;
+}
+
+.calls-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border: none;
+  background: none;
+  color: var(--WDS-content-default);
+  font: inherit;
+  font-size: 13px;
+}
+
+.calls-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.calls-action-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--WDS-warm-gray-75);
+}
+
+.calls-recent {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--WDS-content-default);
+}
+
+.calls-item {
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+}
+
+.calls-item-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.calls-item-main:hover,
+.calls-item-kind:hover {
+  background: var(--WDS-surface-highlight);
+}
+
+.calls-item-avatar img,
+.calls-item-avatar > svg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.calls-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.calls-item-name {
+  font-size: 16px;
+  color: var(--WDS-content-default);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.calls-item.missed .calls-item-name {
+  color: #e53935;
+}
+
+.calls-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--WDS-content-deemphasized);
+}
+
+.calls-item-arrow {
+  display: flex;
+  color: var(--WDS-accent);
+}
+
+.calls-item.missed .calls-item-arrow {
+  color: #e53935;
+}
+
+.calls-item-kind {
+  display: flex;
+  padding: 12px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--WDS-content-default);
+  cursor: pointer;
+}
+
+.calls-foot {
+  padding: 12px 16px 24px;
+  font-size: 12px;
+  color: var(--WDS-content-deemphasized);
+}
+
+.sidebar-bottom-tab {
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}

@@ -157,6 +157,47 @@ def describe_report_document():
     }
 
 
+CALL_RE_PT = re.compile(r"^Chamada de (voz|v[ií]deo)(?: — duração (\d{1,2}:\d{2}))?( perdida)?", re.I)
+CALL_RE_EN = re.compile(r"^(Missed )?(Voice|Video) call(?:, (\d+) (min|sec)|, (No answer)|, (Ended)|, (Tap to call back))?", re.I)
+
+
+def describe_call(msg):
+    """One call as the calls screen needs it: direction, kind, how it ended, how long.
+
+    The Martha export writes calls in English ("Voice call, 3 min", "Missed
+    video call, Tap to call back", "Voice call, No answer"); the police report
+    in Portuguese ("Chamada de voz — duração 02:49", "Chamada de voz perdida").
+    Both become the same record. Returns None for a line that is not a call.
+    """
+    text = (msg.get("content") or "").strip()
+    kind, status, duration = None, None, None
+    m = CALL_RE_PT.match(text)
+    if m:
+        kind = "video" if m.group(1).lower().startswith("v") and "d" in m.group(1).lower() else "voice"
+        duration = m.group(2)
+        status = "missed" if m.group(3) else ("completed" if duration else "ended")
+    else:
+        m = CALL_RE_EN.match(text)
+        if not m:
+            return None
+        kind = m.group(2).lower()
+        if m.group(1) or m.group(7):
+            status = "missed"
+        elif m.group(5):
+            status = "no_answer"
+        elif m.group(3):
+            status = "completed"
+            duration = f"{m.group(3)} {'min' if m.group(4).lower().startswith('min') else 's'}"
+        else:
+            status = "ended"
+    return {
+        "kind": kind,
+        "status": status,
+        "duration": duration,
+        "outgoing": msg.get("sender") == "DV",
+    }
+
+
 def normalise_date_range(date_range):
     """Always {"start": ..., "end": ...}.
 
@@ -189,6 +230,19 @@ def split_conversation(conv_id, data, index):
 
     for date in dates:
         write_json(conv_dir / f"{date}.json", {"messages": by_date[date]})
+
+    for msg in messages:
+        if msg["type"] != "call":
+            continue
+        call = describe_call(msg)
+        if call:
+            CALLS.append({
+                "conversation_id": conv_id,
+                "message_id": msg["id"],
+                "date": msg["date"],
+                "timestamp": msg["timestamp"],
+                **call,
+            })
 
     print(f"{conv_id}: {len(messages)} messages, {len(dates)} dates, "
           f"search index {size_mb:.1f} MB")
@@ -225,6 +279,7 @@ def split_conversation(conv_id, data, index):
 
 
 REPORT_DOCUMENT = None
+CALLS = []
 
 
 def main():
@@ -250,6 +305,11 @@ def main():
     entries.sort(key=lambda e: e["last_message"]["timestamp"] if e["last_message"] else "",
                  reverse=True)
     write_json(OUTPUT_DIR / "conversations.json", {"conversations": entries})
+
+    # Every call, newest first — the calls screen reads this one file.
+    CALLS.sort(key=lambda c: c["timestamp"], reverse=True)
+    write_json(OUTPUT_DIR / "calls.json", {"calls": CALLS})
+    print(f"calls.json: {len(CALLS)} calls")
 
     total = sum(e["total_messages"] for e in entries)
     print(f"\nDone! {len(entries)} conversations, {total} messages in {OUTPUT_DIR}")

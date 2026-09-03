@@ -21,6 +21,7 @@ import {
   shareImageFile, canShareFiles,
 } from './lib/screenshot.js';
 import { showImagePreview } from './components/ImagePreview.js';
+import { renderCallsPanel } from './components/CallsPanel.js';
 import { exportUrl, EXPORT_ALL_URL, downloadFile } from './lib/export.js';
 import { copyText } from './lib/utils.js';
 
@@ -464,9 +465,12 @@ async function init() {
   // ── Wire nav rail ──────────────────────────────────
 
   const navRail = renderNavRail(container, {
+    onCalls: () => router.navigate('calls'),
     avatarSrc: '/assets/avatar-dv.jpg',
     onSettings: openSettings,
     onChat: () => {
+      // From the calls screen, this is the way back to the list.
+      if (router.getCurrentRoute().route === 'calls') { router.navigate('home'); return; }
       closeProfile();
       closeSettings();
     },
@@ -483,6 +487,8 @@ async function init() {
     onProfile: openProfile,
     onAbout: openSettings,
     onExportAll: () => downloadFile(EXPORT_ALL_URL),
+    onCalls: () => router.navigate('calls'),
+    onChats: () => router.navigate('home'),
     onSelect: (id) => {
       // Close profile/settings if open before navigating
       closeProfile();
@@ -511,7 +517,25 @@ async function init() {
   // ── Router ─────────────────────────────────────────
 
   const router = new HashRouter();
-  router.on('home', () => showEmptyState());
+  router.on('home', () => { sidebar.showChats?.(); navRail.setActive?.('chats'); showEmptyState(); });
+
+  // The calls screen takes the list's place; the log is one file, fetched
+  // the first time it is asked for.
+  let callsPromise = null;
+  router.on('calls', async () => {
+    showEmptyState();
+    callsPromise ??= fetch('/data/calls.json').then(r => r.json()).then(d => d.calls);
+    let calls = [];
+    try { calls = await callsPromise; } catch { callsPromise = null; }
+    const panel = renderCallsPanel({
+      calls,
+      conversations: store.getConversations(),
+      avatarFor: (convId) => AVATARS[convId] || null,
+      onOpen: (convId, messageId) => router.navigate('chat', convId, messageId),
+    });
+    sidebar.showCalls?.(panel);
+    navRail.setActive?.('calls');
+  });
   router.on('chat', async (id, messageId) => {
     if (messageId) {
       // Look up the date for this message ID
