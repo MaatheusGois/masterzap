@@ -12,16 +12,15 @@
  * saying the same thing — a profile edited in one place is edited in both.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'node:fs';
-import { createHash } from 'node:crypto';
+import { writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import JSZip from 'jszip';
 
 import { getContactProfile, VORCARO_PROFILE, SOURCES } from '../src/lib/profile-content.js';
 import { SETTINGS_CONTENT } from '../src/lib/settings-content.js';
 import {
-  ROOT, SITE, REPO, TIMEZONE, UTC_OFFSET, REPORT_PDF,
-  loadEntries, loadMessages, sourceOf as sourceDetail, contactOf, whoIs,
+  ROOT, SITE, REPO, TIMEZONE, UTC_OFFSET,
+  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver,
   urlsIn, linksToMarkdown, longDate, phonePretty, MEDIA,
 } from './lib/corpus.mjs';
 
@@ -30,13 +29,9 @@ const FORMAT_VERSION = 1;
 const generatedAt = new Date().toISOString();
 
 const entries = loadEntries();
-
-function sha256(path) {
-  if (!existsSync(path)) return null;
-  return createHash('sha256').update(readFileSync(path)).digest('hex');
-}
-const reportSha = sha256(join(ROOT, REPORT_PDF));
-const sourceOf = (entry) => sourceDetail(entry, reportSha);
+// Highlights point at messages; resolved once here, for every file below.
+const resolve = createResolver(entries);
+const md = (text, context) => linksToMarkdown(text, { resolve, context });
 
 // ── text helpers ───────────────────────────────────────────────────────────
 
@@ -73,7 +68,7 @@ const escapeLine = (line) => line.replace(/^([#>\-+*]|\d+\.)(?=\s|$)/, '\\$1');
 
 // ── profile ────────────────────────────────────────────────────────────────
 
-function profileMarkdown(title, profile) {
+function profileMarkdown(title, profile, context) {
   if (!profile) return { text: '', urls: [] };
   const urls = [];
   const out = [`## ${title}`, ''];
@@ -84,20 +79,20 @@ function profileMarkdown(title, profile) {
     }
     for (const p of section.paragraphs || []) {
       urls.push(...urlsIn(p.text));
-      out.push(linksToMarkdown(p.text), '');
+      out.push(md(p.text, context), '');
     }
   }
   return { text: out.join('\n'), urls };
 }
 
-function profileJson(profile) {
+function profileJson(profile, context) {
   if (!profile) return null;
   const urls = [];
   const sections = (profile.sections || []).map(s => ({
     title: s.title || null,
     paragraphs: (s.paragraphs || []).map(p => {
       urls.push(...urlsIn(p.text));
-      return linksToMarkdown(p.text);
+      return md(p.text, context);
     }),
   }));
   return { about: profile.about || null, sections, sources: [...new Set(urls)] };
@@ -120,7 +115,7 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
 
   out.push(`${sub} Proveniência`, '', '| | |', '|---|---|');
   out.push(`| Fonte | ${source.label} |`);
-  if (source.document) out.push(`| Documento | \`${source.document}\` (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
+  if (source.document) out.push(`| Documento | \`${source.document}\`${source.document_pages ? `, ${source.document_pages} páginas` : ''} (sha256 \`${source.document_sha256 || 'n/d'}\`) |`);
   out.push(`| Como chegou ao público | ${source.how} |`);
   out.push(`| Período | ${entry.date_range.start} a ${entry.date_range.end} |`);
   out.push(`| Mensagens | ${entry.total_messages} |`);
@@ -131,7 +126,7 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
   out.push('');
 
   const who = whoIs(entry, profile);
-  const { text: profileText, urls } = profileMarkdown(`Quem é ${who}`, profile);
+  const { text: profileText, urls } = profileMarkdown(`Quem é ${who}`, profile, entry.id);
   if (profileText) out.push(profileText.replace(/^## /, `${sub} `).replace(/\n### /g, `\n${standalone ? '###' : '####'} `));
 
   out.push(`${sub} Conversa`, '');
@@ -141,7 +136,8 @@ function conversationMarkdown(entry, messages, { standalone = true } = {}) {
       day = msg.date;
       out.push(`${standalone ? '###' : '####'} ${longDate(day)}`, '');
     }
-    const tags = [msg.time.slice(0, 5)];
+    // Time to the second and the message id: the key a citation needs.
+    const tags = [msg.time, `msg ${msg.id}`];
     if (msg.is_edited) tags.push('editada');
     if (msg.view_once) tags.push('visualização única');
     if (msg.source_page) tags.push(`laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''}`);
@@ -179,7 +175,7 @@ function conversationJson(entry, messages) {
       source_detail: source,
       note: entry.note || null,
     },
-    profile: profileJson(getContactProfile(entry.id)),
+    profile: profileJson(getContactProfile(entry.id), entry.id),
     messages: messages.map(m => ({ ...m, timestamp: `${m.timestamp}${UTC_OFFSET}` })),
   };
 }
@@ -189,7 +185,7 @@ function conversationJson(entry, messages) {
 function aboutMarkdown() {
   const about = SETTINGS_CONTENT.sections.find(s => s.title === 'Sobre o Projeto');
   const out = ['## Sobre o projeto', ''];
-  for (const p of about?.paragraphs || []) out.push(linksToMarkdown(p.text), '');
+  for (const p of about?.paragraphs || []) out.push(md(p.text), '');
   return out.join('\n');
 }
 
@@ -221,7 +217,8 @@ function allMarkdown(built) {
     '# MasterWhats — todas as conversas', '',
     `> Exportado de [MasterWhats](${SITE}) em ${generatedAt.slice(0, 10)}. ${built.length} conversas, ${total} mensagens. Código e dados: ${REPO}.`, '',
     aboutMarkdown(),
-    profileMarkdown('Quem é Daniel Vorcaro', VORCARO_PROFILE).text,
+    // Vorcaro's own profile quotes the Martha chat when it says "search".
+    profileMarkdown('Quem é Daniel Vorcaro', VORCARO_PROFILE, 'martha-graeff').text,
     '## Conversas', '',
     ...built.map(b => `- [${contactOf(b.entry)}](#${b.entry.id}) — ${b.entry.total_messages} mensagens, ${b.entry.date_range.start} a ${b.entry.date_range.end}`),
     '', '---', '',

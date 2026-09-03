@@ -131,3 +131,19 @@ describe('profile coverage', () => {
     expect(orphans).toEqual([]);
   });
 });
+
+describe('the police report as a document', () => {
+  it('is described once, with hash and page count, on every conversation from it', () => {
+    const fromReport = conversations.filter(c => c.source?.startsWith('IPJ-A'));
+    expect(fromReport.length).toBeGreaterThan(0);
+    for (const conv of fromReport) {
+      expect(conv.source_document?.sha256, conv.id).toMatch(/^[0-9a-f]{64}$/);
+      expect(conv.source_document?.pages, conv.id).toBeGreaterThan(0);
+      expect(conv.source_document?.file, conv.id).toMatch(/\.pdf$/);
+    }
+  });
+
+  it('is absent from the leak that did not come from it', () => {
+    expect(conversations.find(c => c.id === 'martha-graeff').source_document).toBeUndefined();
+  });
+});
