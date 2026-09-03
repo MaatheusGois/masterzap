@@ -13,6 +13,19 @@ import { ScrollLoader } from '../lib/scroll-loader.js';
 import { ICON_INFO, ICON_SEARCH, ICON_CHECKEMPTY, ICON_BELL, ICON_TIMER, ICON_DOWNLOAD, ICON_CLOSE_CIRCULAR, ICON_MASTERZAP_LOGO, ICON_MEETBALL, ICON_CHEVRON_DW, ICON_SCREENSHOT } from '../lib/icons.js';
 
 import { defaultAvatarSvg } from '../lib/avatar.js';
+import { parseContacts, parseLocation, mapsUrl, parseLink, parseAudio, parseImage, conversationForPhone } from '../lib/media.js';
+import { showContactsSheet, ICON_MESSAGE } from './ContactsSheet.js';
+
+/**
+ * What the media renderers need from outside the bubble: who the contacts
+ * are, where the avatars live, how to open a chat or copy a number. Set once
+ * per chat view; there is only ever one on screen.
+ */
+let media = { conversations: [], avatarFor: () => null, selfAvatar: null, contactAvatar: null, contactName: '', onOpenChat: () => {}, onCopy: () => {}, container: null };
+
+const ICON_PLAY = `<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
+const MAP_PLACEHOLDER = '/assets/map-placeholder.jpg';
+const MAP_PIN = '/assets/map-pin.jpg';
 
 const BACK_ICON = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
 
@@ -58,6 +71,9 @@ const ICON_BLOCK = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" 
 
 /**
  * Render a media placeholder (image/video/sticker).
+ *
+ * The box grows with its caption: a screenshot of a whole exchange was
+ * transcribed into some of these, and text must never leave the grey area.
  */
 function renderMediaPlaceholder(type, msg) {
   const el = document.createElement('div');
@@ -69,51 +85,246 @@ function renderMediaPlaceholder(type, msg) {
   iconEl.innerHTML = type === 'video' ? ICON_VIDEO : ICON_CAMERA;
   el.appendChild(iconEl);
 
+  const image = type === 'image' ? parseImage(msg.content) : null;
+
   const label = document.createElement('span');
   label.className = 'chat-media-label';
   const labels = { image: 'Foto', video: 'Vídeo', sticker: 'Sticker' };
-  label.textContent = labels[type] || type;
+  label.textContent = image ? image.label : (labels[type] || type);
   el.appendChild(label);
 
-  if (msg.content) {
+  if (image?.note) {
+    const note = document.createElement('div');
+    note.className = 'chat-media-note';
+    note.textContent = image.note;
+    el.appendChild(note);
+  }
+
+  const captionText = image ? image.caption : (msg.content || '');
+  if (captionText) {
     const caption = document.createElement('div');
     caption.className = 'chat-media-caption';
-    caption.textContent = msg.content;
+    caption.textContent = captionText;
     el.appendChild(caption);
   }
 
   return el;
 }
 
+/** A round avatar: the photograph when there is one, the coloured initial otherwise. */
+function avatarEl(src, name, size, className) {
+  const wrap = document.createElement('span');
+  wrap.className = className;
+  if (src) {
+    const img = document.createElement('img');
+    img.src = src;
+    img.alt = name;
+    wrap.appendChild(img);
+  } else {
+    wrap.innerHTML = defaultAvatarSvg(name || '?', size);
+  }
+  return wrap;
+}
+
 /**
- * Render an audio message placeholder with waveform bars.
+ * A voice message as WhatsApp draws it — play, waveform, the sender's photo —
+ * with the transcript underneath. The audio itself is not in the material;
+ * the play button says so by being disabled.
  */
-function renderAudioPlaceholder(msg) {
+function renderAudioMessage(msg, isOutgoing) {
+  const { transcript } = parseAudio(msg.content);
   const el = document.createElement('div');
-  el.className = 'chat-audio-placeholder';
+  el.className = 'chat-audio';
 
-  const iconEl = document.createElement('span');
-  iconEl.className = 'chat-audio-icon';
-  // Static SVG — safe innerHTML
-  iconEl.innerHTML = ICON_MIC;
-  el.appendChild(iconEl);
+  const row = document.createElement('div');
+  row.className = 'chat-audio-row';
 
-  // Waveform bars
+  const play = document.createElement('button');
+  play.className = 'chat-audio-play';
+  play.disabled = true;
+  play.setAttribute('aria-label', 'Áudio não disponível');
+  play.innerHTML = ICON_PLAY;
+  row.appendChild(play);
+
   const waveform = document.createElement('div');
   waveform.className = 'chat-audio-waveform';
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 34; i++) {
     const bar = document.createElement('span');
     bar.className = 'chat-audio-bar';
-    bar.style.height = `${4 + Math.floor(Math.random() * 16)}px`;
+    bar.style.height = `${4 + ((i * 7919) % 17)}px`;
     waveform.appendChild(bar);
   }
-  el.appendChild(waveform);
+  row.appendChild(waveform);
 
-  const duration = document.createElement('span');
-  duration.className = 'chat-audio-duration';
-  duration.textContent = msg.content || '0:00';
-  el.appendChild(duration);
+  const who = avatarEl(isOutgoing ? media.selfAvatar : media.contactAvatar,
+    isOutgoing ? 'Daniel Vorcaro' : media.contactName, 40, 'chat-audio-avatar');
+  const mic = document.createElement('span');
+  mic.className = 'chat-audio-mic';
+  mic.innerHTML = ICON_MIC;
+  who.appendChild(mic);
+  row.appendChild(who);
+  el.appendChild(row);
 
+  const foot = document.createElement('div');
+  foot.className = 'chat-audio-foot';
+  foot.textContent = 'Áudio não recuperado · transcrição da perícia';
+  el.appendChild(foot);
+
+  if (transcript) {
+    const t = document.createElement('div');
+    t.className = 'chat-audio-transcript';
+    t.textContent = `\u201C${transcript}\u201D`;
+    el.appendChild(t);
+  }
+  return el;
+}
+
+/** A shared location: the map with a pin, the place and its address; opens on Google Maps. */
+function renderLocationCard(msg) {
+  const loc = parseLocation(msg.content);
+  const a = document.createElement('a');
+  a.className = 'chat-location-card';
+  a.href = mapsUrl(loc);
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+
+  const img = document.createElement('img');
+  img.className = 'chat-location-map';
+  img.src = MAP_PIN;
+  img.alt = 'Mapa';
+  a.appendChild(img);
+
+  const body = document.createElement('div');
+  body.className = 'chat-location-body';
+  const place = document.createElement('span');
+  place.className = 'chat-location-place';
+  place.textContent = loc.place;
+  body.appendChild(place);
+  if (loc.address) {
+    const addr = document.createElement('span');
+    addr.className = 'chat-location-address';
+    addr.textContent = loc.address;
+    body.appendChild(addr);
+  }
+  a.appendChild(body);
+  return a;
+}
+
+/**
+ * A link with its preview, as WhatsApp shows one: the card on top (a map
+ * thumbnail for Google Maps, the title and description for anything else)
+ * and the address itself underneath, clickable, opening in a new tab.
+ */
+function renderLinkMessage(msg) {
+  const link = parseLink(msg.content);
+  const frag = document.createDocumentFragment();
+  if (!link.url) {
+    const t = document.createElement('span');
+    t.textContent = msg.content || '';
+    frag.appendChild(t);
+    return frag;
+  }
+
+  const card = document.createElement('a');
+  card.className = `chat-link-card${link.isMap ? ' is-map' : ''}`;
+  card.href = link.url;
+  card.target = '_blank';
+  card.rel = 'noopener noreferrer';
+  if (link.isMap) {
+    const img = document.createElement('img');
+    img.className = 'chat-link-thumb';
+    img.src = MAP_PLACEHOLDER;
+    img.alt = '';
+    card.appendChild(img);
+  }
+  const body = document.createElement('div');
+  body.className = 'chat-link-body';
+  const title = document.createElement('span');
+  title.className = 'chat-link-title';
+  title.textContent = link.title || link.host;
+  body.appendChild(title);
+  if (link.description) {
+    const desc = document.createElement('span');
+    desc.className = 'chat-link-desc';
+    desc.textContent = link.description;
+    body.appendChild(desc);
+  }
+  const host = document.createElement('span');
+  host.className = 'chat-link-host';
+  host.textContent = link.host;
+  body.appendChild(host);
+  card.appendChild(body);
+  frag.appendChild(card);
+
+  const url = document.createElement('a');
+  url.className = 'chat-link-url';
+  url.href = link.url;
+  url.target = '_blank';
+  url.rel = 'noopener noreferrer';
+  url.textContent = link.url;
+  frag.appendChild(url);
+
+  if (link.extra) {
+    const extra = document.createElement('div');
+    extra.className = 'chat-link-extra';
+    extra.textContent = link.extra;
+    frag.appendChild(extra);
+  }
+  return frag;
+}
+
+/**
+ * A contact card. One person: photo, name, and "Enviar mensagem" — which
+ * opens the chat if Vorcaro had one with that number, and copies the number
+ * otherwise. Several entries: the first one and "Ver todos".
+ */
+function renderContactCard(msg) {
+  const contacts = parseContacts(msg.content);
+  const el = document.createElement('div');
+  el.className = 'chat-contact-card';
+  if (!contacts.length) {
+    el.textContent = msg.content || '';
+    return el;
+  }
+  const first = contacts[0];
+  const match = conversationForPhone(first.phone, media.conversations);
+
+  const head = document.createElement('div');
+  head.className = 'chat-contact-head';
+  head.appendChild(avatarEl(match ? media.avatarFor(match.id) : null, first.name, 44, 'chat-contact-avatar'));
+  const names = document.createElement('div');
+  names.className = 'chat-contact-names';
+  const name = document.createElement('span');
+  name.className = 'chat-contact-name';
+  name.textContent = first.name;
+  names.appendChild(name);
+  const sub = document.createElement('span');
+  sub.className = 'chat-contact-sub';
+  sub.textContent = contacts.length > 1
+    ? `e mais ${contacts.length - 1} contato${contacts.length > 2 ? 's' : ''}`
+    : (first.org || first.phone || '');
+  if (sub.textContent) names.appendChild(sub);
+  head.appendChild(names);
+  el.appendChild(head);
+
+  const actions = document.createElement('div');
+  actions.className = 'chat-contact-actions';
+  if (contacts.length > 1) {
+    const all = document.createElement('button');
+    all.className = 'chat-contact-action';
+    all.textContent = 'Ver todos';
+    all.addEventListener('click', () => showContactsSheet(media.container, contacts, media));
+    actions.appendChild(all);
+  } else if (first.phone) {
+    const send = document.createElement('button');
+    send.className = 'chat-contact-action';
+    send.innerHTML = `${ICON_MESSAGE}<span>${match ? 'Enviar mensagem' : 'Copiar número'}</span>`;
+    send.addEventListener('click', () => {
+      if (match) media.onOpenChat(match.id); else media.onCopy(first.phone, 'Número copiado');
+    });
+    actions.appendChild(send);
+  }
+  if (actions.childNodes.length) el.appendChild(actions);
   return el;
 }
 
@@ -225,7 +436,19 @@ function renderMessage(msg) {
       content.appendChild(renderMediaPlaceholder('video', msg));
       break;
     case 'audio':
-      content.appendChild(renderAudioPlaceholder(msg));
+      content.appendChild(renderAudioMessage(msg, isOutgoing));
+      break;
+    case 'image_view_once':
+      content.appendChild(renderMediaPlaceholder('image', msg));
+      break;
+    case 'location':
+      content.appendChild(renderLocationCard(msg));
+      break;
+    case 'link':
+      content.appendChild(renderLinkMessage(msg));
+      break;
+    case 'contact':
+      content.appendChild(renderContactCard(msg));
       break;
     case 'sticker':
       content.appendChild(renderMediaPlaceholder('sticker', msg));
@@ -243,6 +466,14 @@ function renderMessage(msg) {
       // Text: escapeHtml first (neutralizes ALL HTML), then linkify wraps URLs in <a>
       const escaped = escapeHtml(msg.content || '');
       content.innerHTML = linkify(escaped);
+      // Vorcaro's notes to Moraes were screenshots sent to vanish; the text
+      // exists because the forensics recovered them. Say so, quietly.
+      if (msg.view_once) {
+        const tag = document.createElement('div');
+        tag.className = 'chat-view-once-tag';
+        tag.textContent = 'Visualização única · print do bloco de notas, recuperado pela perícia';
+        content.prepend(tag);
+      }
       break;
     }
   }
@@ -289,7 +520,8 @@ function renderMessage(msg) {
  */
 // Use the design system meetball icon for 3-dot menu
 
-export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout, onScreenshot, onExport, onMenuOpen }) {
+export function renderChatView(container, { conversation, dateIndex, loadMessages, onBack, onContactClick, onSearch, onCloseChat, onAbout, onScreenshot, onExport, onMenuOpen, media: mediaOptions }) {
+  if (mediaOptions) media = { ...media, ...mediaOptions, container };
   // Clear container
   while (container.firstChild) container.removeChild(container.firstChild);
 

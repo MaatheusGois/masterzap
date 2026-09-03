@@ -22,6 +22,7 @@ import {
 } from './lib/screenshot.js';
 import { showImagePreview } from './components/ImagePreview.js';
 import { exportUrl, EXPORT_ALL_URL, downloadFile } from './lib/export.js';
+import { copyText } from './lib/utils.js';
 
 // ── Active state (only one thing at a time) ──────
 let activeLoader = null;
@@ -329,6 +330,16 @@ async function init() {
       onSearch: toggleSearch,
       onScreenshot: shareScreenshot,
       onExport: (format) => downloadFile(exportUrl(conversation.id, format)),
+      // Contact cards, voice notes and the like need to know who is who.
+      media: {
+        conversations: store.getConversations(),
+        avatarFor: (convId) => AVATARS[convId] || null,
+        selfAvatar: AVATARS['dv-self'],
+        contactAvatar: AVATARS[conversation.id] || null,
+        contactName,
+        onOpenChat: (convId) => router.navigate('chat', convId),
+        onCopy: (text, label) => copyText(text).then(ok => showToast(mainArea, ok ? label : 'Não foi possível copiar')),
+      },
       onMenuOpen: () => prepareScreenshot(mainArea, contactName),
       onContactClick: () => {
         // Only one right drawer at a time

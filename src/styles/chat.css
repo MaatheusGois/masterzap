@@ -634,3 +634,265 @@
   color: var(--WDS-content-deemphasized);
   font-size: 13px;
 }
+
+/* ── Media fidelity: the placeholder grows with its caption ─────────────────
+   A screenshot of a whole exchange was transcribed into some of these; the
+   text stays inside the grey box, left-aligned, with room at the sides. */
+.chat-media-placeholder {
+  height: auto;
+  min-height: 180px;
+  padding: 18px 0 12px;
+  box-sizing: border-box;
+}
+
+.chat-media-note {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 14px;
+  font-size: 12px;
+  font-style: italic;
+  text-align: center;
+  opacity: 0.85;
+}
+
+.chat-media-caption {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 14px 0;
+  text-align: left;
+  text-wrap: pretty;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--WDS-content-default);
+}
+
+/* ── Voice note: play, waveform, the sender's photo, the transcript ───────── */
+.chat-audio {
+  min-width: 240px;
+  max-width: 320px;
+}
+
+.chat-audio-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.chat-audio-play {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--WDS-content-deemphasized);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-audio-play:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.chat-audio-avatar {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+}
+
+.chat-audio-avatar img,
+.chat-audio-avatar > svg {
+  display: block;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chat-audio-mic {
+  position: absolute;
+  right: -4px;
+  bottom: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--WDS-accent);
+  color: var(--WDS-white);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-audio-mic svg {
+  width: 11px;
+  height: 11px;
+}
+
+.chat-audio-foot {
+  margin: 2px 0 0 46px;
+  font-size: 11px;
+  color: var(--WDS-content-deemphasized);
+}
+
+.chat-audio-transcript {
+  margin-top: 8px;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--WDS-content-deemphasized);
+  white-space: pre-wrap;
+}
+
+/* ── Location: the map with a pin, the place, the address ─────────────────── */
+.chat-location-card {
+  display: block;
+  width: 260px;
+  max-width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--WDS-warm-gray-75);
+  color: inherit;
+}
+
+.chat-msg-content a.chat-location-card:hover,
+.chat-msg-content a.chat-link-card:hover {
+  text-decoration: none;
+}
+
+.chat-location-map,
+.chat-link-thumb {
+  display: block;
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+}
+
+.chat-location-body,
+.chat-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 10px;
+}
+
+.chat-location-place,
+.chat-link-title {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--WDS-content-default);
+}
+
+.chat-location-address,
+.chat-link-desc,
+.chat-link-host {
+  font-size: 12px;
+  color: var(--WDS-content-deemphasized);
+}
+
+/* ── Link with preview ─────────────────────────────────────────────────────── */
+.chat-link-card {
+  display: block;
+  width: 100%;
+  max-width: 300px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--WDS-warm-gray-75);
+  color: inherit;
+}
+
+.chat-link-desc {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chat-link-host {
+  font-size: 11.5px;
+}
+
+.chat-link-url {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.chat-link-extra {
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+/* ── Contact card ──────────────────────────────────────────────────────────── */
+.chat-contact-card {
+  min-width: 230px;
+}
+
+.chat-contact-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 2px 8px;
+}
+
+.chat-contact-avatar img,
+.chat-contact-avatar > svg {
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.chat-contact-names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.chat-contact-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--WDS-content-default);
+}
+
+.chat-contact-sub {
+  font-size: 12px;
+  color: var(--WDS-content-deemphasized);
+}
+
+.chat-contact-actions {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid var(--WDS-lines-outline-deemphasized);
+  padding-top: 4px;
+}
+
+.chat-contact-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: none;
+  color: var(--WDS-accent);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.chat-contact-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* A note sent to vanish, recovered by the forensics: the text is real, the
+   bubble says how it got here. */
+.chat-view-once-tag {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--WDS-content-deemphasized);
+}
