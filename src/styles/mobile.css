@@ -82,7 +82,8 @@
   /* Media placeholders at 240px on mobile */
   .chat-media-placeholder {
     width: 240px;
-    height: 180px;
+    height: auto;
+    min-height: 150px;
   }
 
   /* Smaller empty state */
