@@ -73,6 +73,22 @@ test.describe('Contact cards', () => {
     await expect(page.locator('.contacts-sheet')).toHaveCount(0);
   });
 
+  // WhatsApp Web shows shared contacts in a dialog over the chat; the phone
+  // takes the whole screen.
+  test('on a wide screen the list is a dialog over the chat, closed by clicking outside', async ({ page }) => {
+    test.skip(page.viewportSize().width <= 600, 'phone: full screen by design');
+    const row = await open(page, 'fabio-faria', 19);
+    await row.locator('.chat-contact-action', { hasText: 'Ver todos' }).click();
+    const sheet = page.locator('.contacts-sheet');
+    const list = await sheet.locator('.contacts-sheet-list').boundingBox();
+    const view = page.viewportSize();
+    expect(list.width).toBeLessThan(view.width * 0.6);
+    expect(list.x).toBeGreaterThan(view.width * 0.2);
+    await expect(page.locator('.chat-header')).toBeVisible();
+    await page.mouse.click(10, view.height - 10);
+    await expect(sheet).toHaveCount(0);
+  });
+
   test('the sheet closes on its back button', async ({ page }) => {
     const row = await open(page, 'fabio-faria', 19);
     await row.locator('.chat-contact-action', { hasText: 'Ver todos' }).click();
