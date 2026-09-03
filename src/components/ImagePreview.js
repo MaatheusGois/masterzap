@@ -13,9 +13,17 @@
  * The image stays on screen because a long press on it opens the browser's own
  * menu, which copies, saves and shares.
  *
+ * On Android the back button is how people leave a sheet, and here it used to
+ * leave the conversation instead: the router saw a hash change and went to the
+ * list. So opening pushes a history entry and closing pops it — back closes
+ * the preview and nothing else. Closing by the X or Escape pops the same entry,
+ * or the next back press would jump one step too far.
+ *
  * Security note: innerHTML is used only with static markup; the image arrives
  * as an object URL, assigned through the src property.
  */
+
+const HISTORY_MARK = { masterwhatsImagePreview: true };
 
 const ICON_CLOSE = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
@@ -94,10 +102,23 @@ export function showImagePreview(container, blob, { filename, onShare, onClose }
     download();
   }
 
+  function ownsHistoryEntry() {
+    return typeof history !== 'undefined' && !!history.state?.masterwhatsImagePreview;
+  }
+
+  function onPopstate() {
+    // Back was pressed: our entry is already gone, so just close.
+    window.removeEventListener('popstate', onPopstate);
+    close();
+  }
+
   function destroy() {
     document.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('popstate', onPopstate);
     overlay.remove();
     URL.revokeObjectURL(url);
+    // Closed by the X, Escape or the backdrop: take our entry with us.
+    if (ownsHistoryEntry()) history.back();
   }
 
   function close() {
@@ -116,6 +137,10 @@ export function showImagePreview(container, blob, { filename, onShare, onClose }
     if (e.target === overlay) close();
   });
   document.addEventListener('keydown', onKeydown, true);
+  if (typeof history !== 'undefined') {
+    history.pushState(HISTORY_MARK, '');
+    window.addEventListener('popstate', onPopstate);
+  }
 
   container.appendChild(overlay);
   requestAnimationFrame(() => overlay.classList.add('open'));

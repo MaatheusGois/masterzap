@@ -165,14 +165,78 @@ function inlineStylesheets(clonedDoc) {
   clonedDoc.head.appendChild(style);
 }
 
+/** Height, in CSS pixels, of the bar with the site's address under every print. */
+export const ATTRIBUTION_BAR_HEIGHT = 44;
+const ATTRIBUTION_URL = 'www.masterwhats.com.br';
+const ATTRIBUTION_NAME = 'MasterWhats';
+const ATTRIBUTION_LOGO = '/assets/masterzap-logo.png';
+
+function loadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 /**
- * Render an element to a PNG blob, clipped to what is visible.
+ * Add a bar under the picture saying where it came from — the way a
+ * screenshot shared from Reddit carries "Posted in r/…". A print travels
+ * further than a link does, and this is the only thing on it that says where
+ * the rest of the conversation is.
+ *
+ * @param {HTMLCanvasElement} canvas - the rendered chat
+ * @param {number} scale - device pixels per CSS pixel the canvas was drawn at
+ * @returns {Promise<HTMLCanvasElement>}
+ */
+async function withAttributionBar(canvas, scale) {
+  const barHeight = Math.round(ATTRIBUTION_BAR_HEIGHT * scale);
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = canvas.height + barHeight;
+  const ctx = out.getContext('2d');
+  // No 2D context means no browser (jsdom); the picture goes out as it is.
+  if (!ctx) return canvas;
+
+  ctx.drawImage(canvas, 0, 0);
+
+  const top = canvas.height;
+  const middle = top + barHeight / 2;
+  const pad = 16 * scale;
+  ctx.fillStyle = '#111b21';
+  ctx.fillRect(0, top, out.width, barHeight);
+
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#e9edef';
+  ctx.font = `500 ${15 * scale}px Roboto, "Helvetica Neue", Arial, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText(ATTRIBUTION_URL, pad, middle);
+
+  // Logo and name on the right; the name alone if the logo does not load.
+  const logo = await loadImage(ATTRIBUTION_LOGO);
+  const logoSize = 26 * scale;
+  ctx.textAlign = 'right';
+  ctx.font = `700 ${15 * scale}px Roboto, "Helvetica Neue", Arial, sans-serif`;
+  const nameRight = out.width - pad;
+  ctx.fillText(ATTRIBUTION_NAME, nameRight, middle);
+  if (logo) {
+    const nameWidth = ctx.measureText(ATTRIBUTION_NAME).width;
+    ctx.drawImage(logo, nameRight - nameWidth - 8 * scale - logoSize, middle - logoSize / 2, logoSize, logoSize);
+  }
+  return out;
+}
+
+/**
+ * Render an element to a PNG blob, clipped to what is visible, with the
+ * attribution bar underneath.
  * @param {HTMLElement} element
  * @returns {Promise<Blob>}
  */
 export async function captureElement(element) {
   const html2canvas = await loadHtml2Canvas();
   const rect = element.getBoundingClientRect();
+  const scale = Math.min(window.devicePixelRatio || 1, 2);
 
   const canvas = await html2canvas(element, {
     // The dropdown that started this sits inside the captured area; the picture
@@ -181,7 +245,7 @@ export async function captureElement(element) {
     onclone: inlineStylesheets,
     // Cap the pixel ratio: a 3x phone screen would otherwise produce an image
     // several times larger than anything needs.
-    scale: Math.min(window.devicePixelRatio || 1, 2),
+    scale,
     backgroundColor: null,
     useCORS: true,
     logging: false,
@@ -194,7 +258,8 @@ export async function captureElement(element) {
     scrollY: 0,
   });
 
-  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  const framed = await withAttributionBar(canvas, scale);
+  const blob = await new Promise(resolve => framed.toBlob(resolve, 'image/png'));
   if (!blob) throw new Error('Não foi possível gerar a imagem.');
   return blob;
 }
