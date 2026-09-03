@@ -147,7 +147,13 @@ def describe_report_document():
             pages = int(m.group(1))
     except (OSError, subprocess.SubprocessError):
         pass
-    return {"file": REPORT_PDF, "sha256": sha, "pages": pages}
+    # The path is the repository's; the site does not serve the PDF. Say where it is.
+    return {
+        "file": REPORT_PDF,
+        "url": f"https://github.com/rafaelbressan/masterzap/blob/main/{REPORT_PDF}",
+        "sha256": sha,
+        "pages": pages,
+    }
 
 
 def normalise_date_range(date_range):

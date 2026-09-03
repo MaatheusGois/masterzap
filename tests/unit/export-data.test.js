@@ -101,18 +101,19 @@ describe('the Markdown', () => {
     expect(text).toContain('](https://www.masterwhats.com.br/#/chat/alexandre-de-moraes/msg/');
     expect(text).toMatch(/⟨\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} · laudo p\. \d+, fig\. \d+⟩/);
     expect(text).toContain('218 páginas');
+    expect(text).toContain('[no repositório](https://github.com/rafaelbressan/masterzap/blob/main/data/source/');
   });
 
   it('cites the page of the report on every message from it', () => {
     const text = md('alexandre-de-moraes');
-    const headers = text.split('\n').filter(l => /^\*\*.+\*\* · \d{2}:\d{2}:\d{2} · msg \d+/.test(l));
+    const headers = text.split('\n').filter(l => /^\*\*.+\*\* · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} · msg \d+/.test(l));
     expect(headers.length).toBe(62);
     for (const line of headers) expect(line).toMatch(/laudo p\. \d+/);
   });
 
   it('keeps every message', () => {
     for (const conv of conversations) {
-      const headers = md(conv.id).split('\n').filter(l => /^\*\*.+\*\* · \d{2}:\d{2}:\d{2} · msg \d+/.test(l));
+      const headers = md(conv.id).split('\n').filter(l => /^\*\*.+\*\* · \d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} · msg \d+/.test(l));
       expect(headers.length, conv.id).toBe(conv.total_messages);
     }
   });

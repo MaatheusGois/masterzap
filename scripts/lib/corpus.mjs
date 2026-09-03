@@ -47,6 +47,7 @@ export function sourceOf(entry) {
       kind: 'police-report',
       label: entry.source,
       document: doc.file || null,
+      document_url: doc.url || null,
       document_sha256: doc.sha256 || null,
       document_pages: doc.pages || null,
       made_public: '2026-09-01',
