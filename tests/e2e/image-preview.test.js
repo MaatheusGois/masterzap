@@ -189,3 +189,41 @@ test.describe('Dismissing the preview', () => {
     await expect(page.locator('.image-preview')).toBeVisible();
   });
 });
+
+test.describe('The back button', () => {
+  // On Android, back is how a sheet gets dismissed. It used to leave the
+  // conversation: the router saw the hash change and went to the list.
+  test('closes the preview and stays in the conversation', async ({ page }) => {
+    await page.goto('/');
+    await page.goto('/#/chat/ciro-soares');
+    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+    await page.evaluate(FIREFOX_PROFILE);
+    await page.locator('.chat-header button[aria-label="Menu"]').click();
+    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    await page.goBack();
+
+    await expect(page.locator('.image-preview')).toHaveCount(0);
+    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+    expect(await page.evaluate(() => location.hash)).toBe('#/chat/ciro-soares');
+  });
+
+  // Closing on the X must not leave the extra entry behind, or the next back
+  // press would go nowhere.
+  test('after closing on the X, back leaves the conversation as before', async ({ page }) => {
+    await page.goto('/#/');
+    await page.goto('/#/chat/ciro-soares');
+    await expect(page.locator('.chat-msg-bubble').first()).toBeVisible();
+    await page.evaluate(FIREFOX_PROFILE);
+    await page.locator('.chat-header button[aria-label="Menu"]').click();
+    await page.locator('.chat-dropdown-item', { hasText: 'Compartilhar print' }).click();
+    await expect(page.locator('.image-preview')).toBeVisible({ timeout: 20000 });
+
+    await page.locator('.image-preview-close').click();
+    await expect(page.locator('.image-preview')).toHaveCount(0);
+
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => location.hash)).toBe('#/');
+  });
+});

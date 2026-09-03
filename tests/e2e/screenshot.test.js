@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { ATTRIBUTION_BAR_HEIGHT } from '../../src/lib/screenshot.js';
 
 // The capture itself only exists in a real browser: html2canvas walks the live
 // DOM and paints it into a canvas. The delivery chain is unit-tested; what is
@@ -72,7 +73,8 @@ test.describe('Chat screenshot', () => {
 
     const area = await page.locator('.main-area').boundingBox();
     const ratio = size.width / size.height;
-    const expected = area.width / area.height;
+    // The bar with the site's address sits under the chat.
+    const expected = area.width / (area.height + ATTRIBUTION_BAR_HEIGHT);
 
     // Rendered at devicePixelRatio, so compare shape rather than pixel counts.
     expect(Math.abs(ratio - expected)).toBeLessThan(0.05);
@@ -98,7 +100,40 @@ test.describe('Chat screenshot', () => {
       .evaluate(el => el.scrollHeight);
     const dpr = await page.evaluate(() => Math.min(window.devicePixelRatio || 1, 2));
 
-    expect(height / dpr).toBeLessThan(scrollHeight);
+    expect(height / dpr - ATTRIBUTION_BAR_HEIGHT).toBeLessThan(scrollHeight);
+  });
+
+  // A print travels further than a link; the bar is the only thing on it that
+  // says where the conversation lives.
+  test('carries the site address in a bar at the bottom', async ({ page }) => {
+    const dataUrl = await captureProducedImage(page);
+    const dpr = await page.evaluate(() => Math.min(window.devicePixelRatio || 1, 2));
+
+    const rows = await page.evaluate(([src, barCss, scale]) => new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => {
+        const c = document.createElement('canvas');
+        c.width = img.naturalWidth; c.height = img.naturalHeight;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const bar = Math.round(barCss * scale);
+        const mean = (y0, y1) => {
+          const { data } = ctx.getImageData(0, y0, c.width, y1 - y0);
+          let sum = 0;
+          for (let i = 0; i < data.length; i += 4) sum += (data[i] + data[i + 1] + data[i + 2]) / 3;
+          return sum / (data.length / 4);
+        };
+        resolve({
+          bar: mean(c.height - bar + 2, c.height - 2),
+          chatAbove: mean(c.height - bar - 40, c.height - bar - 2),
+        });
+      };
+      img.src = src;
+    }), [dataUrl, ATTRIBUTION_BAR_HEIGHT, dpr]);
+
+    // Dark bar under a light chat.
+    expect(rows.bar).toBeLessThan(70);
+    expect(rows.chatAbove).toBeGreaterThan(rows.bar + 60);
   });
 
   test('confirms with a toast when it lands on the clipboard', async ({ page, context, browserName }) => {
