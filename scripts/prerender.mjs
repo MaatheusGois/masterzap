@@ -23,7 +23,7 @@ import { getContactProfile, VORCARO_PROFILE, SOURCES } from '../src/lib/profile-
 import { SETTINGS_CONTENT } from '../src/lib/settings-content.js';
 import {
   ROOT, SITE, REPO, TIMEZONE, UTC_OFFSET,
-  loadEntries, loadMessages, sourceOf, contactOf, whoIs,
+  loadEntries, loadMessages, sourceOf, contactOf, whoIs, createResolver,
   urlsIn, linksToMarkdown, linksToText, linksToHtml, escapeHtml,
   longDate, phonePretty, messageText,
 } from './lib/corpus.mjs';
@@ -37,16 +37,24 @@ if (!existsSync(templatePath)) {
 const template = readFileSync(templatePath, 'utf-8');
 const today = new Date().toISOString().slice(0, 10);
 const entries = loadEntries();
+const resolve = createResolver(entries);
 
 /** Martha's 65k would make a page nobody should have to download. */
 const PREVIEW_MESSAGES = 200;
 
-const REPORT_DOC = {
-  '@type': 'DigitalDocument',
-  name: 'IPJ-A nº 3298613/2026 — Polícia Federal',
-  description: 'Informação de Polícia Judiciária de Análise sobre o iPhone apreendido de Daniel Vorcaro; sigilo levantado em 1º de setembro de 2026.',
-  datePublished: '2026-08-27',
-};
+function reportDoc(source) {
+  const doc = {
+    '@type': 'DigitalDocument',
+    name: 'IPJ-A nº 3298613/2026 — Polícia Federal',
+    description: 'Informação de Polícia Judiciária de Análise sobre o iPhone apreendido de Daniel Vorcaro; sigilo levantado em 1º de setembro de 2026.',
+    datePublished: '2026-08-27',
+  };
+  if (source.document_pages) doc.numberOfPages = source.document_pages;
+  if (source.document_sha256) {
+    doc.identifier = { '@type': 'PropertyValue', propertyID: 'sha256', value: source.document_sha256 };
+  }
+  return doc;
+}
 
 // ── per-conversation page ──────────────────────────────────────────────────
 
@@ -83,7 +91,7 @@ function jsonLd(entry, who, description) {
     ],
     dateModified: today,
   };
-  if (source.kind === 'police-report') data.isBasedOn = REPORT_DOC;
+  if (source.kind === 'police-report') data.isBasedOn = reportDoc(source);
   return JSON.stringify(data, null, 2);
 }
 
@@ -101,7 +109,8 @@ function article(entry, messages, profile, who) {
 
   out.push('<h2>Proveniência</h2><dl>');
   out.push(`<dt>Fonte</dt><dd>${escapeHtml(source.label)}</dd>`);
-  if (source.document) out.push(`<dt>Documento</dt><dd>${escapeHtml(source.document)}</dd>`);
+  if (source.document) out.push(`<dt>Documento</dt><dd>${escapeHtml(source.document)}${source.document_pages ? `, ${source.document_pages} páginas` : ''}</dd>`);
+  if (source.document_sha256) out.push(`<dt>sha256 do documento</dt><dd><code>${source.document_sha256}</code></dd>`);
   out.push(`<dt>Como chegou ao público</dt><dd>${escapeHtml(source.how)}</dd>`);
   if (entry.saved_as) out.push(`<dt>Contato salvo como</dt><dd>${escapeHtml(entry.saved_as)}</dd>`);
   if (entry.phone) out.push(`<dt>Telefone</dt><dd>${escapeHtml(phonePretty(entry.phone))}</dd>`);
@@ -118,7 +127,7 @@ function article(entry, messages, profile, who) {
       }
       for (const p of section.paragraphs || []) {
         urls.push(...urlsIn(p.text));
-        out.push(`<p>${linksToHtml(p.text)}</p>`);
+        out.push(`<p>${linksToHtml(p.text, { resolve, context: entry.id, samePage: entry.id })}</p>`);
       }
     }
   }
@@ -131,7 +140,7 @@ function article(entry, messages, profile, who) {
       out.push(`<h3>${longDate(day)}</h3>`);
     }
     const cite = msg.source_page ? ` <small>(laudo p. ${msg.source_page}${msg.source_figure ? `, fig. ${msg.source_figure}` : ''})</small>` : '';
-    out.push(`<p><time datetime="${msg.timestamp}${UTC_OFFSET}">${msg.time.slice(0, 5)}</time> <b>${escapeHtml(msg.sender)}</b>: ${escapeHtml(messageText(msg))}${cite}</p>`);
+    out.push(`<p id="msg-${msg.id}"><time datetime="${msg.timestamp}${UTC_OFFSET}">${msg.time.slice(0, 5)}</time> <b>${escapeHtml(msg.sender)}</b>: ${escapeHtml(messageText(msg))}${cite}</p>`);
   }
   if (shown.length < messages.length) {
     out.push(`<p>As outras ${messages.length - shown.length} mensagens estão no <a href="/export/masterwhats-${entry.id}.md">Markdown completo</a> e <a href="/#/chat/${entry.id}">no app</a>.</p>`);
@@ -180,11 +189,11 @@ function page(entry, messages) {
 
 // ── llms-full.txt ──────────────────────────────────────────────────────────
 
-function profileParagraphs(profile) {
+function profileParagraphs(profile, context) {
   const out = [];
   for (const section of profile?.sections || []) {
     if (section.title) out.push(`**${section.title}**`, '');
-    for (const p of section.paragraphs || []) out.push(linksToMarkdown(p.text), '');
+    for (const p of section.paragraphs || []) out.push(linksToMarkdown(p.text, { resolve, context }), '');
   }
   return out;
 }
@@ -195,11 +204,11 @@ function llmsFull(built) {
   const rest = SETTINGS_CONTENT.sections.filter(s => s !== about);
   const out = [
     '# MasterWhats — conteúdo completo', '',
-    `> Tudo que o site diz, em texto. ${built.length} conversas, ${total} mensagens, de ${built.at(-1)?.entry.date_range.start ?? ''} a ${built[0]?.entry.date_range.end ?? ''}. Gerado em ${today}. Código e dados: ${REPO}.`, '',
+    `> Tudo que o site diz, em texto. Cada citação traz ⟨data hora · laudo p., fig.⟩ e linka a mensagem: o link do app é ${SITE}/#/chat/<id>/msg/<n>, e o mesmo n aparece como "msg n" no Markdown de cada conversa. ${built.length} conversas, ${total} mensagens, de ${built.at(-1)?.entry.date_range.start ?? ''} a ${built[0]?.entry.date_range.end ?? ''}. Gerado em ${today}. Código e dados: ${REPO}.`, '',
     '## Sobre o projeto', '',
-    ...(about?.paragraphs || []).map(p => linksToMarkdown(p.text) + '\n'),
+    ...(about?.paragraphs || []).map(p => linksToMarkdown(p.text, { resolve }) + '\n'),
     '## Quem é Daniel Vorcaro', '',
-    ...profileParagraphs(VORCARO_PROFILE),
+    ...profileParagraphs(VORCARO_PROFILE, 'martha-graeff'),
     `## Conversas (${built.length})`, '',
   ];
   for (const { entry, who, profile } of built) {
@@ -211,11 +220,11 @@ function llmsFull(built) {
     if (entry.saved_as) out.push(`- Salvo no celular como: ${entry.saved_as}`);
     if (entry.note) out.push(`- Observação: ${entry.note}`);
     out.push('');
-    out.push(...profileParagraphs(profile));
+    out.push(...profileParagraphs(profile, entry.id));
   }
   for (const section of rest) {
     out.push(`## ${section.title}`, '');
-    for (const p of section.paragraphs) out.push(linksToMarkdown(p.text), '');
+    for (const p of section.paragraphs) out.push(linksToMarkdown(p.text, { resolve }), '');
   }
   out.push('## Fontes gerais', '', ...SOURCES.map(s => `- [${s.label}](${s.url})`), '');
   out.push('## Export', '',
@@ -236,6 +245,7 @@ function sitemap(built) {
     const headline = entry.id === 'alexandre-de-moraes' || entry.id === 'martha-graeff';
     rows.push(url(`${SITE}/chat/${entry.id}`, headline ? '0.9' : '0.8'));
   }
+  rows.push(url(`${SITE}/llms.txt`, '0.7'));
   rows.push(url(`${SITE}/llms-full.txt`, '0.7'));
   rows.push(url(`${SITE}/export/masterwhats.md`, '0.6', 'monthly'));
   for (const { entry } of built) rows.push(url(`${SITE}/export/masterwhats-${entry.id}.md`, '0.5', 'monthly'));

@@ -36,6 +36,22 @@ describe('one page per conversation', () => {
     }
   });
 
+  it('gives every message an anchor and links the highlights to them', () => {
+    const html = page('alexandre-de-moraes');
+    expect(html).toContain('<p id="msg-39">');
+    expect(html).toContain('<a href="#msg-39">Acha que segunda ja tenho que estar fora?</a>');
+    expect(html).toContain('<small>⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩</small>');
+  });
+
+  it('names the report by pages and hash', () => {
+    const html = page('ciro-soares');
+    expect(html).toContain('218 páginas');
+    expect(html).toMatch(/<dt>sha256 do documento<\/dt><dd><code>[0-9a-f]{64}<\/code><\/dd>/);
+    const [ld] = ldBlocks(html);
+    expect(ld.isBasedOn.numberOfPages).toBe(218);
+    expect(ld.isBasedOn.identifier.value).toMatch(/^[0-9a-f]{64}$/);
+  });
+
   it('carries the conversation as plain HTML, with the contact named', () => {
     const html = page('ciro-soares');
     expect(html).toContain('<article id="prerender">');
@@ -88,6 +104,17 @@ describe('one page per conversation', () => {
   });
 });
 
+describe('discovery', () => {
+  // A crawler should not have to guess that llms.txt exists.
+  it('the home page and robots.txt point at llms.txt', () => {
+    const home = readFileSync(join(DIST, 'index.html'), 'utf-8');
+    expect(home).toContain('<link rel="alternate" type="text/plain" href="/llms.txt"');
+    expect(home).toContain('href="/llms-full.txt"');
+    const robots = readFileSync(join(ROOT, 'public/robots.txt'), 'utf-8');
+    expect(robots).toContain('/llms.txt');
+  });
+});
+
 describe('the home page', () => {
   it('describes the corpus as a Dataset with downloads', () => {
     const blocks = ldBlocks(readFileSync(join(DIST, 'index.html'), 'utf-8'));
@@ -109,6 +136,12 @@ describe('llms-full.txt', () => {
     }
   });
 
+  it('cites every highlight with a link, a date and a page', () => {
+    const t = text();
+    expect(t).toContain('/#/chat/alexandre-de-moraes/msg/39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
+    expect(t).toContain('/#/chat/martha-graeff/msg/35686) ⟨04/12/2024 00:33⟩');
+  });
+
   it('carries the profiles with their sources as links, and nothing site-only', () => {
     const t = text();
     expect(t).toContain('## Quem é Daniel Vorcaro');
@@ -123,6 +156,7 @@ describe('sitemap.xml', () => {
     const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
     const locs = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1]);
     expect(locs).toContain(`${SITE}/`);
+    expect(locs).toContain(`${SITE}/llms.txt`);
     expect(locs).toContain(`${SITE}/llms-full.txt`);
     for (const conv of conversations) {
       expect(locs, conv.id).toContain(`${SITE}/chat/${conv.id}`);

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Split messages.json into per-date chunks for lazy loading."""
 
+import hashlib
 import json
+import subprocess
 import os
 import re
 import sys
@@ -123,6 +125,31 @@ def write_json(path, data):
         json.dump(data, f, ensure_ascii=False, separators=(",", ":"))
 
 
+REPORT_PDF = "data/source/IPJ-A-3298613-2026.pdf"
+REPORT_PAGES_FALLBACK = 218
+
+
+def describe_report_document():
+    """The police report as a document: path, hash and page count.
+
+    Computed here, once, so every consumer (site, export, pre-rendered pages)
+    reads the same values from conversations.json instead of recomputing.
+    """
+    path = ROOT / REPORT_PDF
+    if not path.exists():
+        return None
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    pages = REPORT_PAGES_FALLBACK
+    try:
+        info = subprocess.run(["pdfinfo", str(path)], capture_output=True, text=True, timeout=30)
+        m = re.search(r"^Pages:\s+(\d+)", info.stdout, re.M)
+        if m:
+            pages = int(m.group(1))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return {"file": REPORT_PDF, "sha256": sha, "pages": pages}
+
+
 def normalise_date_range(date_range):
     """Always {"start": ..., "end": ...}.
 
@@ -182,10 +209,17 @@ def split_conversation(conv_id, data, index):
     for key in ("phone", "saved_as", "source", "note"):
         if metadata.get(key):
             entry[key] = metadata[key]
+    if str(metadata.get("source", "")).startswith("IPJ-A") and REPORT_DOCUMENT:
+        entry["source_document"] = REPORT_DOCUMENT
     return entry
 
 
+REPORT_DOCUMENT = None
+
+
 def main():
+    global REPORT_DOCUMENT
+    REPORT_DOCUMENT = describe_report_document()
     data, index = load_source_data()
     sources = [(get_conversation_id(data["metadata"]), data, index)]
     sources.extend(load_extra_conversations())
