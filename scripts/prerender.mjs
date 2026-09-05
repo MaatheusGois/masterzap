@@ -218,7 +218,7 @@ function sourcesHtml(urls) {
 }
 
 function conversationPage(entry, messages, profile, who) {
-  const path = `/chat/${entry.id}`;
+  const path = `/chat/${entry.id}/`;
   const months = monthsOf(messages);
   const paged = isPaged(entry);
   const shown = paged ? messages.slice(0, PREVIEW_MESSAGES) : messages;
@@ -237,7 +237,7 @@ function conversationPage(entry, messages, profile, who) {
   if (paged) {
     out.push(`<h2>Meses</h2><p>A conversa inteira, um mês por página:</p><ul>`);
     for (const [ym, msgs] of months) {
-      out.push(`<li><a href="${path}/${ym}">${longMonth(ym)}</a> — ${msgs.length} mensagens</li>`);
+      out.push(`<li><a href="${path}${ym}/">${longMonth(ym)}</a> — ${msgs.length} mensagens</li>`);
     }
     out.push('</ul>');
   }
@@ -263,24 +263,23 @@ function conversationPage(entry, messages, profile, who) {
 }
 
 function monthPage(entry, who, ym, msgs, prevYm, nextYm) {
-  const path = `/chat/${entry.id}/${ym}`;
-  const parent = `/chat/${entry.id}`;
+  const path = `/chat/${entry.id}/${ym}/`;
+  const parent = `/chat/${entry.id}/`;
   const out = [];
   out.push(`<article id="prerender">`);
   out.push(`<h1>Daniel Vorcaro ↔ ${escapeHtml(who)} — ${longMonth(ym)}</h1>`);
   out.push(`<p>${msgs.length} mensagens em ${longMonth(ym)}, de ${msgs[0].date} a ${msgs.at(-1).date}. `
     + `<a href="${parent}">A conversa</a> · `
-    + (prevYm ? `<a href="${parent}/${prevYm}" rel="prev">${longMonth(prevYm)}</a> · ` : '')
-    + (nextYm ? `<a href="${parent}/${nextYm}" rel="next">${longMonth(nextYm)}</a> · ` : '')
-    + `<a href="/#/chat/${entry.id}/msg/${msgs[0].id}">Abrir no MasterWhats</a> · `
+    + (prevYm ? `<a href="${parent}${prevYm}/" rel="prev">${longMonth(prevYm)}</a> · ` : '')
+    + (nextYm ? `<a href="${parent}${nextYm}/" rel="next">${longMonth(nextYm)}</a> · ` : '')
     + `<a href="/export/masterwhats-${entry.id}-${ym}.md">Markdown deste mês</a> · `
     + `<a href="/export/masterwhats-${entry.id}.md">Markdown completo</a></p>`);
   out.push(...messagesHtml(msgs));
   out.push('</article>');
 
   const description = `Conversa entre Daniel Vorcaro e ${who} em ${longMonth(ym)}: ${msgs.length} mensagens, de ${msgs[0].date} a ${msgs.at(-1).date}.`;
-  const links = (prevYm ? `<link rel="prev" href="${SITE}${parent}/${prevYm}">\n` : '')
-    + (nextYm ? `<link rel="next" href="${SITE}${parent}/${nextYm}">\n` : '');
+  const links = (prevYm ? `<link rel="prev" href="${SITE}${parent}${prevYm}/">\n` : '')
+    + (nextYm ? `<link rel="next" href="${SITE}${parent}${nextYm}/">\n` : '');
   return appPage({
     title: `Daniel Vorcaro ↔ ${who} — ${longMonth(ym)} — MasterWhats`,
     description,
@@ -334,7 +333,7 @@ ${JSON.stringify(jsonLd, null, 2)}
 </head>
 <body>
 <main>
-<header><a href="/">MasterWhats</a> · <a href="/quem">Pessoas citadas</a></header>
+<header><a href="/">MasterWhats</a> · <a href="/quem/">Pessoas citadas</a</header>
 ${body}
 </main>
 </body>
@@ -352,7 +351,7 @@ function mentionHtml(conversationId, msg, alias, primary) {
 }
 
 function personPage(person, mentions) {
-  const path = `/quem/${person.slug}`;
+  const path = `/quem/${person.slug}/`;
   const total = [...mentions.values()].reduce((n, v) => n + v.length, 0);
   const convs = [...mentions.keys()].map(id => byId.get(id));
   const primary = person.aliases[0].match;
@@ -363,12 +362,12 @@ function personPage(person, mentions) {
   const description = `${person.name}, ${person.role}: ${total} menções em ${convs.length} conversa${convs.length === 1 ? '' : 's'} dos celulares de Daniel Vorcaro — ${convs.map(contactOf).join(', ')}.`;
   const body = [];
   body.push(`<h1>${escapeHtml(person.name)}</h1>`);
-  body.push(`<p class="role">${escapeHtml(person.role)}${person.profile ? ` · <a href="/chat/${person.profile}">perfil e conversa com Vorcaro</a>` : ''}</p>`);
+  body.push(`<p class="role">${escapeHtml(person.role)}${person.profile ? ` · <a href="/chat/${person.profile}/">perfil e conversa com Vorcaro</a>` : ''}</p>`);
   body.push(`<p>${total} menções em ${convs.length} conversa${convs.length === 1 ? '' : 's'} — ${breakdown}. Cada uma linka a mensagem na conversa e no app; as do relatório da PF citam página e figura do laudo.</p>`);
   body.push(`<p class="how">Como as mensagens se referem a essa pessoa: ${person.aliases.map(a => `<code>${escapeHtml(a.match)}</code>${a.only ? ` (só em ${a.only.map(id => contactOf(byId.get(id))).join(', ')})` : ''}`).join(', ')}. Uma menção achada por um apelido que não é o nome vem marcada.</p>`);
   for (const [id, hits] of mentions) {
     const entry = byId.get(id);
-    body.push(`<h2><a href="/chat/${id}">Daniel Vorcaro ↔ ${escapeHtml(contactOf(entry))}</a> — ${hits.length} men${hits.length === 1 ? 'ção' : 'ções'}</h2>`);
+    body.push(`<h2><a href="/chat/${id}/">Daniel Vorcaro ↔ ${escapeHtml(contactOf(entry))}</a> — ${hits.length} men${hits.length === 1 ? 'ção' : 'ções'}</h2>`);
     for (const { msg, alias } of hits) body.push(mentionHtml(id, msg, alias, primary));
   }
   const jsonLd = {
@@ -390,14 +389,14 @@ function peopleIndex(people) {
   const body = ['<h1>Pessoas citadas</h1>', '<p>Quem aparece nas conversas de Daniel Vorcaro, com toda menção datada e apontando para a mensagem.</p>', '<ul class="people">'];
   for (const { person, mentions } of people) {
     const total = [...mentions.values()].reduce((n, v) => n + v.length, 0);
-    body.push(`<li><a href="/quem/${person.slug}">${escapeHtml(person.name)}</a> — ${escapeHtml(person.role)} · ${total} menções em ${mentions.size} conversa${mentions.size === 1 ? '' : 's'}</li>`);
+    body.push(`<li><a href="/quem/${person.slug}/">${escapeHtml(person.name)}</a> — ${escapeHtml(person.role)} · ${total} menções em ${mentions.size} conversa${mentions.size === 1 ? '' : 's'}</li>`);
   }
   body.push('</ul>');
   const jsonLd = {
     '@context': 'https://schema.org', '@type': 'CollectionPage', '@id': `${SITE}/quem`, url: `${SITE}/quem`,
     name: 'Pessoas citadas nas conversas de Daniel Vorcaro', inLanguage: 'pt-BR', isPartOf: { '@id': `${SITE}/#dataset` }, dateModified: today,
   };
-  return standalone({ title: 'Pessoas citadas — MasterWhats', description: 'Quem aparece nas conversas de Daniel Vorcaro, com toda menção datada e apontando para a mensagem.', path: '/quem', jsonLd, body: body.join('\n') });
+  return standalone({ title: 'Pessoas citadas — MasterWhats', description: 'Quem aparece nas conversas de Daniel Vorcaro, com toda menção datada e apontando para a mensagem.', path: '/quem/', jsonLd, body: body.join('\n') });
 }
 
 // ── llms-full.txt ──────────────────────────────────────────────────────────
@@ -427,8 +426,8 @@ function llmsFull(built, people) {
   for (const { entry, who, profile, months } of built) {
     const source = sourceOf(entry);
     out.push(`### ${who} — ${entry.total_messages} mensagens, ${entry.date_range.start} a ${entry.date_range.end}`, '');
-    out.push(`- Página: ${SITE}/chat/${entry.id}`);
-    if (months) out.push(`- Um mês por página: ${[...months.keys()].map(ym => `${SITE}/chat/${entry.id}/${ym}`).join(' · ')}`, `- Markdown por mês (troque o mês): ${SITE}/export/masterwhats-${entry.id}-${[...months.keys()][0]}.md`);
+    out.push(`- Página: ${SITE}/chat/${entry.id}/`);
+    if (months) out.push(`- Um mês por página: ${[...months.keys()].map(ym => `${SITE}/chat/${entry.id}/${ym}/`).join(' · ')}`, `- Markdown por mês (troque o mês): ${SITE}/export/masterwhats-${entry.id}-${[...months.keys()][0]}.md`);
     out.push(`- Conversa completa em Markdown: ${SITE}/export/masterwhats-${entry.id}.md · JSON: ${SITE}/export/masterwhats-${entry.id}.json`);
     out.push(`- Fonte: ${source.label}`);
     if (entry.saved_as) out.push(`- Salvo no celular como: ${entry.saved_as}`);
@@ -436,10 +435,10 @@ function llmsFull(built, people) {
     out.push('');
     out.push(...profileParagraphs(profile, entry.id));
   }
-  out.push(`## Pessoas citadas (${people.length})`, '', `Índice em ${SITE}/quem — cada página lista toda menção, por conversa, datada e apontando para a mensagem.`, '');
+  out.push(`## Pessoas citadas (${people.length})`, '', `Índice em ${SITE}/quem/ — cada página lista toda menção, por conversa, datada e apontando para a mensagem.`, '');
   for (const { person, mentions } of people) {
     const per = [...mentions].map(([id, hits]) => `${contactOf(byId.get(id))} (${hits.length})`).join(', ');
-    out.push(`- [${person.name}](${SITE}/quem/${person.slug}) — ${person.role}. Citado em: ${per}.`);
+    out.push(`- [${person.name}](${SITE}/quem/${person.slug}/) — ${person.role}. Citado em: ${per}.`);
   }
   out.push('');
   for (const section of rest) {
@@ -470,11 +469,11 @@ function sitemap(built, people) {
   const rows = [url(`${SITE}/`, '1.0')];
   for (const { entry, months } of built) {
     const headline = entry.id === 'alexandre-de-moraes' || entry.id === 'martha-graeff';
-    rows.push(url(`${SITE}/chat/${entry.id}`, headline ? '0.9' : '0.8'));
-    if (months) for (const ym of months.keys()) rows.push(url(`${SITE}/chat/${entry.id}/${ym}`, '0.6', 'monthly'));
+    rows.push(url(`${SITE}/chat/${entry.id}/`, headline ? '0.9' : '0.8'));
+    if (months) for (const ym of months.keys()) rows.push(url(`${SITE}/chat/${entry.id}/${ym}/`, '0.6', 'monthly'));
   }
-  rows.push(url(`${SITE}/quem`, '0.8'));
-  for (const { person } of people) rows.push(url(`${SITE}/quem/${person.slug}`, '0.7'));
+  rows.push(url(`${SITE}/quem/`, '0.8'));
+  for (const { person } of people) rows.push(url(`${SITE}/quem/${person.slug}/`, '0.7'));
   rows.push(url(`${SITE}/llms.txt`, '0.7'));
   rows.push(url(`${SITE}/llms-full.txt`, '0.7'));
   rows.push(url(`${SITE}/export/masterwhats.md`, '0.6', 'monthly'));

@@ -41,17 +41,17 @@ describe('rendering', () => {
   it('links the quote to the message and cites date and page', () => {
     const md = linksToMarkdown(text, opts);
     expect(md).toContain('](https://www.masterwhats.com.br/#/chat/alexandre-de-moraes/msg/39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
-    expect(md).toContain('[Ciro](https://www.masterwhats.com.br/chat/ciro-soares)');
+    expect(md).toContain('[Ciro](https://www.masterwhats.com.br/chat/ciro-soares/)');
     expect(md).toContain('[fonte](https://ex.am/ple)');
   });
 
   it('points at the static anchor when told where messages live', () => {
     const locate = createLocator(entries);
     expect(linksToMarkdown(text, { ...opts, hrefFor: locate }))
-      .toContain('](https://www.masterwhats.com.br/chat/alexandre-de-moraes#msg-39) ⟨');
+      .toContain('](https://www.masterwhats.com.br/chat/alexandre-de-moraes/#msg-39) ⟨');
     expect(linksToMarkdown('{x}[action:search@martha-graeff:presidente bacen]', { resolve, hrefFor: locate }))
-      .toContain('](https://www.masterwhats.com.br/chat/martha-graeff/2024-12#msg-35686)');
-    expect(linksToHtml(text, { ...opts, hrefFor: locate, fromPath: '/chat/alexandre-de-moraes' }))
+      .toContain('](https://www.masterwhats.com.br/chat/martha-graeff/2024-12/#msg-35686)');
+    expect(linksToHtml(text, { ...opts, hrefFor: locate, fromPath: '/chat/alexandre-de-moraes/' }))
       .toContain('<a href="#msg-39">');
   });
 
@@ -59,7 +59,7 @@ describe('rendering', () => {
     const html = linksToHtml(text, { ...opts, samePage: 'alexandre-de-moraes' });
     expect(html).toContain('<a href="#msg-39">');
     expect(html).toContain('<small>⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩</small>');
-    expect(html).toContain('<a href="/chat/ciro-soares">Ciro</a>');
+    expect(html).toContain('<a href="/chat/ciro-soares/">Ciro</a>');
   });
 
   it('escapes the text but not the site\'s own links, in html', () => {

@@ -30,8 +30,8 @@ describe('one page per conversation', () => {
   it('is titled and canonical for that conversation, not the home page', () => {
     for (const conv of conversations) {
       const html = page(conv.id);
-      expect(html, conv.id).toContain(`<link rel="canonical" href="${SITE}/chat/${conv.id}">`);
-      expect(html, conv.id).toContain(`<meta property="og:url" content="${SITE}/chat/${conv.id}">`);
+      expect(html, conv.id).toContain(`<link rel="canonical" href="${SITE}/chat/${conv.id}/">`);
+      expect(html, conv.id).toContain(`<meta property="og:url" content="${SITE}/chat/${conv.id}/">`);
       expect(html, conv.id).toMatch(/<title>Daniel Vorcaro ↔ .+ — MasterWhats<\/title>/);
     }
   });
@@ -48,7 +48,7 @@ describe('one page per conversation', () => {
     expect(html).toContain('218 páginas');
     expect(html).toMatch(/<dt>sha256 do documento<\/dt><dd><code>[0-9a-f]{64}<\/code><\/dd>/);
     // The path is the repository's; a crawler must not fetch it from the site.
-    expect(html).toContain('href="https://github.com/rafaelbressan/masterzap/blob/main/data/source/');
+    expect(html).toContain('href="https://github.com/MaatheusGois/masterzap/blob/main/data/source/');
     expect(html).toContain('o site não serve o PDF');
     const [ld] = ldBlocks(html);
     expect(ld.isBasedOn.numberOfPages).toBe(218);
@@ -78,7 +78,7 @@ describe('one page per conversation', () => {
       expect(blocks, conv.id).toHaveLength(1);
       const [ld] = blocks;
       expect(ld['@type']).toBe('Conversation');
-      expect(ld['@id']).toBe(`${SITE}/chat/${conv.id}`);
+      expect(ld['@id']).toBe(`${SITE}/chat/${conv.id}/`);
       expect(ld.isPartOf['@id']).toBe(`${SITE}/#dataset`);
       expect(ld.encoding.map(e => e.contentUrl)).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
       if (conv.source?.startsWith('IPJ-A')) expect(ld.isBasedOn['@type'], conv.id).toBe('DigitalDocument');
@@ -125,20 +125,20 @@ describe('a conversation too big for one page', () => {
     expect(months.length).toBeGreaterThan(12);
     const main = page('martha-graeff');
     expect(main).toContain('<h2>Meses</h2>');
-    for (const ym of months) expect(main, ym).toContain(`<a href="/chat/martha-graeff/${ym}">`);
+    for (const ym of months) expect(main, ym).toContain(`<a href="/chat/martha-graeff/${ym}/">`);
   });
 
   it('holds only that month, in order, chained to its neighbours', () => {
     const html = readFileSync(join(DIST, 'chat/martha-graeff/2024-12/index.html'), 'utf-8');
-    expect(html).toContain('<link rel="canonical" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-12">');
-    expect(html).toContain('<link rel="prev" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-11">');
-    expect(html).toContain('<link rel="next" href="https://www.masterwhats.com.br/chat/martha-graeff/2025-01">');
+    expect(html).toContain('<link rel="canonical" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-12/">');
+    expect(html).toContain('<link rel="prev" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-11/">');
+    expect(html).toContain('<link rel="next" href="https://www.masterwhats.com.br/chat/martha-graeff/2025-01/">');
     const stamps = [...html.matchAll(/<time datetime="(\d{4}-\d{2})-\d{2}T/g)].map(m => m[1]);
     expect(stamps.length).toBeGreaterThan(100);
     expect(new Set(stamps)).toEqual(new Set(['2024-12']));
     const [ld] = ldBlocks(html);
     expect(ld['@type']).toBe('Conversation');
-    expect(ld.isPartOf['@id']).toBe(`${SITE}/chat/martha-graeff`);
+    expect(ld.isPartOf['@id']).toBe(`${SITE}/chat/martha-graeff/`);
     expect(html).toContain("location.replace('#/chat/martha-graeff/msg/");
   });
 
@@ -161,8 +161,8 @@ describe('people', () => {
 
   it('has an index and a page per person', () => {
     const index = readFileSync(join(DIST, 'quem/index.html'), 'utf-8');
-    expect(index).toContain('<a href="/quem/paulo-gonet">Paulo Gonet</a>');
-    expect(index).toContain('<a href="/quem/andre-esteves">André Esteves</a>');
+    expect(index).toContain('<a href="/quem/paulo-gonet/">Paulo Gonet</a>');
+    expect(index).toContain('<a href="/quem/andre-esteves/">André Esteves</a>');
   });
 
   it('lists every mention by conversation, dated, pointing at the message', () => {
@@ -174,7 +174,7 @@ describe('people', () => {
     // The son is not the father.
     expect(html).not.toContain('Pedro Gonet');
     expect(html).toContain('Daniel Vorcaro ↔ Ciro Soares</a>');
-    expect(html).toContain('href="/chat/ciro-soares#msg-34"');
+    expect(html).toContain('href="/chat/ciro-soares/#msg-34"');
     expect(html).toContain('href="https://www.masterwhats.com.br/#/chat/ciro-soares/msg/34"');
     expect(html).toContain('laudo p. 207, fig. 219');
     expect(html).toMatch(/<time datetime="2025-03-29T13:58:\d{2}-03:00">29\/03\/2025 13:58<\/time>/);
@@ -185,7 +185,7 @@ describe('people', () => {
   });
 
   it('points a mention in the big conversation at its month page', () => {
-    expect(person('andre-esteves')).toMatch(/href="\/chat\/martha-graeff\/\d{4}-\d{2}#msg-\d+"/);
+    expect(person('andre-esteves')).toMatch(/href="\/chat\/martha-graeff\/\d{4}-\d{2}\/#msg-\d+"/);
   });
 
   it('describes the page as being about a Person', () => {
@@ -196,14 +196,14 @@ describe('people', () => {
 
   it('is in the sitemap and in llms-full.txt', () => {
     const xml = readFileSync(join(DIST, 'sitemap.xml'), 'utf-8');
-    expect(xml).toContain(`<loc>${SITE}/quem</loc>`);
-    expect(xml).not.toContain(`<loc>${SITE}/quem/</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/quem/paulo-gonet</loc>`);
-    expect(xml).toContain(`<loc>${SITE}/chat/martha-graeff/2024-12</loc>`);
+    expect(xml).not.toContain(`<loc>${SITE}/quem</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/quem/</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/quem/paulo-gonet/</loc>`);
+    expect(xml).toContain(`<loc>${SITE}/chat/martha-graeff/2024-12/</loc>`);
     const t = readFileSync(join(DIST, 'llms-full.txt'), 'utf-8');
     expect(t).toContain('## Pessoas citadas (');
-    expect(t).toContain(`[Paulo Gonet](${SITE}/quem/paulo-gonet)`);
-    expect(t).toContain(`${SITE}/chat/martha-graeff/2024-12`);
+    expect(t).toContain(`[Paulo Gonet](${SITE}/quem/paulo-gonet/)`);
+    expect(t).toContain(`${SITE}/chat/martha-graeff/2024-12/`);
   });
 });
 
@@ -231,16 +231,16 @@ describe('llms-full.txt', () => {
     const t = text();
     expect(t).toContain(`## Conversas (${conversations.length})`);
     for (const conv of conversations) {
-      expect(t, conv.id).toContain(`${SITE}/chat/${conv.id}`);
+      expect(t, conv.id).toContain(`${SITE}/chat/${conv.id}/`);
       expect(t, conv.id).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
     }
   });
 
   it('cites every highlight with a link, a date and a page', () => {
     const t = text();
-    expect(t).toContain('/chat/alexandre-de-moraes#msg-39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
+    expect(t).toContain('/chat/alexandre-de-moraes/#msg-39) ⟨15/11/2025 18:22 · laudo p. 109, fig. 108⟩');
     // The famous quote lives in December 2024, on that month's page.
-    expect(t).toContain('/chat/martha-graeff/2024-12#msg-35686) ⟨04/12/2024 00:33⟩');
+    expect(t).toContain('/chat/martha-graeff/2024-12/#msg-35686) ⟨04/12/2024 00:33⟩');
     expect(t).toContain('## Documento-fonte do relatório da PF');
   });
 
@@ -261,7 +261,7 @@ describe('sitemap.xml', () => {
     expect(locs).toContain(`${SITE}/llms.txt`);
     expect(locs).toContain(`${SITE}/llms-full.txt`);
     for (const conv of conversations) {
-      expect(locs, conv.id).toContain(`${SITE}/chat/${conv.id}`);
+      expect(locs, conv.id).toContain(`${SITE}/chat/${conv.id}/`);
       expect(locs, conv.id).toContain(`${SITE}/export/masterwhats-${conv.id}.md`);
     }
     expect(locs.some(l => l.includes('#'))).toBe(false);

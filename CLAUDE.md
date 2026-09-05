@@ -63,12 +63,12 @@ npm run verify        # Everything, in deploy order: data → unit → build →
 
 ## Before deploying
 
-Vercel deploys on push, so the gate is a `pre-push` hook. Enable it once per
-clone:
+GitHub Actions deploys on push to `main` (`.github/workflows/deploy.yml`); the
+gate is a `pre-push` hook. Enable it once per clone:
 
 ```bash
 git config core.hooksPath .githooks
-npx playwright install chromium   # first time only
+npx playwright install chromium            # first time only
 ```
 
 It runs `npm run verify` (~5 min, mostly E2E across desktop and mobile).
@@ -78,6 +78,12 @@ E2E covers what jsdom cannot see: list scrolling, hover on touch, avatars that
 actually load, and the read/unread wiring. Keep `test:e2e` pointed at
 `tests/e2e/playwright.config.js` — without `--config` Playwright scans `tests/`,
 picks up the Vitest files and dies on a matcher clash.
+
+## GitHub Pages setup
+
+Pages must be enabled once in the repo UI: **Settings → Pages → Build and
+deployment → Source: "GitHub Actions"**. The custom domain (`www.masterwhats.com.br`)
+lives in `public/CNAME` and is copied to `dist/` by Vite.
 
 ## Data Format
 

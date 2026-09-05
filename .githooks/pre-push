@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Vercel deploys on push, so this hook is the last gate before something goes
-# live. It runs the same checks as `npm run verify`.
+# GitHub Actions deploys on push, so this hook is the last gate before
+# something goes live. It runs the same checks as `npm run verify`.
 #
 # Enable it once per clone:
 #     git config core.hooksPath .githooks

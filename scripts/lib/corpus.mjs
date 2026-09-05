@@ -12,7 +12,7 @@ export const DATA_DIR = join(ROOT, 'data');
 export const PUBLIC_DATA = join(ROOT, 'public/data');
 
 export const SITE = 'https://www.masterwhats.com.br';
-export const REPO = 'https://github.com/rafaelbressan/masterzap';
+export const REPO = 'https://github.com/MaatheusGois/masterzap';
 
 // The phones were seized in Brazil and every timestamp in the sources is local
 // wall-clock time. Brazil has had no daylight saving since 2019, so from the
@@ -168,7 +168,7 @@ export function createLocator(entries) {
   return (conversationId, msg) => {
     const entry = byId.get(conversationId);
     if (!entry) return null;
-    return isPaged(entry) ? `/chat/${conversationId}/${msg.date.slice(0, 7)}#msg-${msg.id}` : `/chat/${conversationId}#msg-${msg.id}`;
+    return isPaged(entry) ? `/chat/${conversationId}/${msg.date.slice(0, 7)}/#msg-${msg.id}` : `/chat/${conversationId}/#msg-${msg.id}`;
   };
 }
 
@@ -238,7 +238,7 @@ export function renderLinks(text, opts = {}) {
         out += link(label, href) + cite(target.msg); break;
       }
       case 'conversation':
-        out += link(label, mode === 'html' ? `/chat/${target.conversationId}` : `${SITE}/chat/${target.conversationId}`); break;
+        out += link(label, mode === 'html' ? `/chat/${target.conversationId}/` : `${SITE}/chat/${target.conversationId}/`); break;
       default:
         out += esc(label);
     }

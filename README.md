@@ -42,13 +42,13 @@ O nome do repositório — **masterzap** — é uma referência ao projeto origi
 | **Build** | Vite |
 | **Dados** | 66.387 mensagens em 24 conversas, divididas em arquivos JSON por data |
 | **Carregamento** | Lazy loading com cache LRU por dia |
-| **Deploy** | Vercel com headers de segurança (HSTS, CSP, X-Frame-Options) |
+| **Deploy** | GitHub Pages com `www.masterwhats.com.br` (CNAME), build via Actions (`actions/deploy-pages@v4`) |
 | **SEO** | Open Graph, Twitter Cards, JSON-LD, sitemap |
 
 ## Como Rodar Localmente
 
 ```bash
-git clone https://github.com/rafaelbressan/masterzap.git
+git clone https://github.com/MaatheusGois/masterzap.git
 cd masterzap
 npm install
 npm run split-data    # Gera os arquivos JSON por data em public/data/

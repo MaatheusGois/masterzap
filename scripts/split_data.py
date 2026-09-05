@@ -150,8 +150,8 @@ def describe_report_document():
     # The path is the repository's; the site does not serve the PDF. Say where it is.
     return {
         "file": REPORT_PDF,
-        "url": f"https://github.com/rafaelbressan/masterzap/blob/main/{REPORT_PDF}",
-        "download": f"https://raw.githubusercontent.com/rafaelbressan/masterzap/main/{REPORT_PDF}",
+        "url": f"https://github.com/MaatheusGois/masterzap/blob/main/{REPORT_PDF}",
+        "download": f"https://raw.githubusercontent.com/MaatheusGois/masterzap/main/{REPORT_PDF}",
         "sha256": sha,
         "pages": pages,
     }

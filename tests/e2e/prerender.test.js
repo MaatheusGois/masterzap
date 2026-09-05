@@ -4,8 +4,7 @@ import { test, expect } from '@playwright/test';
 // browser gets the app, open on that conversation, with the HTML gone.
 //
 // The trailing slash is for vite's preview server, which only resolves a
-// directory index that way. Vercel serves the same page at /chat/<id> and
-// redirects the slash away (vercel.json: trailingSlash false).
+// directory index that way. GitHub Pages only resolves the directory form too.
 
 test('a crawler reads the conversation without running anything', async ({ request }) => {
   const res = await request.get('/chat/ciro-soares/');
