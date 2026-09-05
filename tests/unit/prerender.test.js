@@ -10,7 +10,7 @@ import { join } from 'path';
 
 const ROOT = join(import.meta.dirname, '../..');
 const DIST = join(ROOT, 'dist');
-const SITE = 'https://www.masterwhats.com.br';
+const SITE = 'https://MaatheusGois.github.io/masterzap';
 
 const conversations = JSON.parse(
   readFileSync(join(ROOT, 'public/data/conversations.json'), 'utf-8')
@@ -130,9 +130,9 @@ describe('a conversation too big for one page', () => {
 
   it('holds only that month, in order, chained to its neighbours', () => {
     const html = readFileSync(join(DIST, 'chat/martha-graeff/2024-12/index.html'), 'utf-8');
-    expect(html).toContain('<link rel="canonical" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-12/">');
-    expect(html).toContain('<link rel="prev" href="https://www.masterwhats.com.br/chat/martha-graeff/2024-11/">');
-    expect(html).toContain('<link rel="next" href="https://www.masterwhats.com.br/chat/martha-graeff/2025-01/">');
+    expect(html).toContain('<link rel="canonical" href="https://MaatheusGois.github.io/masterzap/chat/martha-graeff/2024-12/">');
+    expect(html).toContain('<link rel="prev" href="https://MaatheusGois.github.io/masterzap/chat/martha-graeff/2024-11/">');
+    expect(html).toContain('<link rel="next" href="https://MaatheusGois.github.io/masterzap/chat/martha-graeff/2025-01/">');
     const stamps = [...html.matchAll(/<time datetime="(\d{4}-\d{2})-\d{2}T/g)].map(m => m[1]);
     expect(stamps.length).toBeGreaterThan(100);
     expect(new Set(stamps)).toEqual(new Set(['2024-12']));
@@ -175,7 +175,7 @@ describe('people', () => {
     expect(html).not.toContain('Pedro Gonet');
     expect(html).toContain('Daniel Vorcaro ↔ Ciro Soares</a>');
     expect(html).toContain('href="/chat/ciro-soares/#msg-34"');
-    expect(html).toContain('href="https://www.masterwhats.com.br/#/chat/ciro-soares/msg/34"');
+    expect(html).toContain('href="https://MaatheusGois.github.io/masterzap/#/chat/ciro-soares/msg/34"');
     expect(html).toContain('laudo p. 207, fig. 219');
     expect(html).toMatch(/<time datetime="2025-03-29T13:58:\d{2}-03:00">29\/03\/2025 13:58<\/time>/);
   });

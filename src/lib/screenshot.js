@@ -167,7 +167,7 @@ function inlineStylesheets(clonedDoc) {
 
 /** Height, in CSS pixels, of the bar with the site's address under every print. */
 export const ATTRIBUTION_BAR_HEIGHT = 44;
-const ATTRIBUTION_URL = 'www.masterwhats.com.br';
+const ATTRIBUTION_URL = 'MaatheusGois.github.io/masterzap';
 const ATTRIBUTION_NAME = 'MasterWhats';
 const ATTRIBUTION_LOGO = '/assets/masterzap-logo.png';
 

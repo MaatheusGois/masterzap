@@ -48,7 +48,7 @@ describe('the JSON', () => {
   it('says where it came from', () => {
     for (const conv of conversations) {
       const { export: meta, conversation } = json(conv.id);
-      expect(meta.site).toBe('https://www.masterwhats.com.br');
+      expect(meta.site).toBe('https://MaatheusGois.github.io/masterzap');
       expect(meta.timezone).toBe('America/Sao_Paulo');
       expect(conversation.id).toBe(conv.id);
       expect(conversation.source, conv.id).toBeTruthy();
@@ -98,7 +98,7 @@ describe('the Markdown', () => {
   // when it was sent and where in the report it is.
   it('turns every highlight into a link with date and page', () => {
     const text = md('alexandre-de-moraes');
-    expect(text).toContain('](https://www.masterwhats.com.br/chat/alexandre-de-moraes/#msg-');
+    expect(text).toContain('](https://MaatheusGois.github.io/masterzap/chat/alexandre-de-moraes/#msg-');
     expect(text).toMatch(/⟨\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} · laudo p\. \d+, fig\. \d+⟩/);
     expect(text).toContain('218 páginas');
     expect(text).toContain('[no repositório](https://github.com/MaatheusGois/masterzap/blob/main/data/source/');

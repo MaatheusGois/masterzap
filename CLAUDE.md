@@ -82,8 +82,8 @@ picks up the Vitest files and dies on a matcher clash.
 ## GitHub Pages setup
 
 Pages must be enabled once in the repo UI: **Settings → Pages → Build and
-deployment → Source: "GitHub Actions"**. The custom domain (`www.masterwhats.com.br`)
-lives in `public/CNAME` and is copied to `dist/` by Vite.
+deployment → Source: "GitHub Actions"**. The site serves at
+`https://MaatheusGois.github.io/masterzap/`.
 
 ## Data Format
 

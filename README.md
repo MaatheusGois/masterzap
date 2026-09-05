@@ -4,7 +4,7 @@
 
 > Visualizador interativo das 66.387 mensagens de WhatsApp extraídas dos celulares apreendidos de Daniel Vorcaro (Banco Master), em 24 conversas — de Martha Graeff a Alexandre de Moraes.
 
-**[Acesse ao vivo: www.masterwhats.com.br](https://www.masterwhats.com.br/)**
+**[Acesse ao vivo: MaatheusGois.github.io/masterzap](https://MaatheusGois.github.io/masterzap/)**
 
 ---
 
@@ -42,7 +42,7 @@ O nome do repositório — **masterzap** — é uma referência ao projeto origi
 | **Build** | Vite |
 | **Dados** | 66.387 mensagens em 24 conversas, divididas em arquivos JSON por data |
 | **Carregamento** | Lazy loading com cache LRU por dia |
-| **Deploy** | GitHub Pages com `www.masterwhats.com.br` (CNAME), build via Actions (`actions/deploy-pages@v4`) |
+| **Deploy** | GitHub Pages (`MaatheusGois.github.io/masterzap/`), build via Actions (`actions/deploy-pages@v4`) |
 | **SEO** | Open Graph, Twitter Cards, JSON-LD, sitemap |
 
 ## Como Rodar Localmente
@@ -135,4 +135,4 @@ The repo name "masterzap" references the original [MasterZap](https://www.reddit
 
 **Contributions welcome** — new leaked conversations, media support, sharing improvements, and bug fixes. See the Roadmap section above. Only text messages are currently available; images, audio, and video were not part of the leaks.
 
-**[Live: www.masterwhats.com.br](https://www.masterwhats.com.br/)** | **Author: [Rafael Bressan](https://linkedin.com/in/rafaelbressan)**
+**[Live: MaatheusGois.github.io/masterzap](https://MaatheusGois.github.io/masterzap/)** | **Author: [Rafael Bressan](https://linkedin.com/in/rafaelbressan)**
