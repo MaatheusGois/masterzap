@@ -111,8 +111,9 @@ describe('discovery', () => {
   // A crawler should not have to guess that llms.txt exists.
   it('the home page and robots.txt point at llms.txt', () => {
     const home = readFileSync(join(DIST, 'index.html'), 'utf-8');
-    expect(home).toContain('<link rel="alternate" type="text/plain" href="/llms.txt"');
-    expect(home).toContain('href="/llms-full.txt"');
+    // Vite prepends the configured base (/masterzap/) to absolute asset paths.
+    expect(home).toContain('<link rel="alternate" type="text/plain" href="/masterzap/llms.txt"');
+    expect(home).toContain('href="./llms-full.txt"');
     const robots = readFileSync(join(ROOT, 'public/robots.txt'), 'utf-8');
     expect(robots).toContain('/llms.txt');
   });
